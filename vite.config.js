@@ -1,21 +1,46 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-tailwindcss()
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: true, // <-- доступ для сети
     port: 5173,
-    // Proxy /api requests to the backend during development
+    host: true,
+    cors: true,
     proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8001',
+      "/api": {
+        target: process.env.VITE_API_URL || "http://127.0.0.1:8001",
         changeOrigin: true,
         secure: false,
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },
-})
+  build: {
+    outDir: "dist",
+    sourcemap: false,
+    minify: "terser",
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: [
+            "react",
+            "react-dom",
+            "react-router-dom",
+            "@reduxjs/toolkit",
+            "react-redux",
+            "react-leaflet",
+            "leaflet",
+          ],
+          map: ["react-leaflet", "leaflet", "leaflet-markercluster"],
+        },
+      },
+    },
+  },
+  preview: {
+    port: 4173,
+    host: true,
+  },
+});
