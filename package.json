@@ -16,7 +16,6 @@
     "@reduxjs/toolkit": "^2.10.1",
     "@tailwindcss/vite": "^4.1.16",
     "leaflet": "^1.9.4",
-    "leaflet-markercluster": "^0.2.2",
     "leaflet-routing-machine": "^3.2.12",
     "leaflet.markercluster": "^1.5.3",
     "react": "^19.1.1",

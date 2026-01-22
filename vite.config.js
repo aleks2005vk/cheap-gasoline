@@ -24,16 +24,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: [
-            "react",
-            "react-dom",
-            "react-router-dom",
-            "@reduxjs/toolkit",
-            "react-redux",
-          ],
-          map: ["react-leaflet", "leaflet", "leaflet-markercluster"],
-        },
+        manualChunks(id) {
+          // Поместить react-leaflet и leaflet в vendor чанк
+          if (id.includes('react-leaflet') || id.includes('leaflet')) {
+            return 'vendor';
+          }
+        }
       },
     },
   },
