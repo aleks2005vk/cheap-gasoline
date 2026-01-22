@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/* App layout and mobile-friendly helpers (moved from Footer.jsx) */
+:root {
+  --header-h: 56px;
+  --footer-h: 76px;
+  --safe-gap: 12px;
+}
+
+/* Utility to allow flex children to scroll correctly */
+.min-h-0 {
+  min-height: 0;
+}
+.min-w-0 {
+  min-width: 0;
+}
+
+/* Touch targets */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Container that wraps header + map + footer */
+.app-fullscreen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100vh;
+}
+
+/* Main area holding map + side panel */
+.map-area {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0; /* critical so children can shrink/scroll */
+}
+
+/* Map viewport: fills remaining area without overflowing */
+.map-viewport {
+  flex: 1 1 auto;
+  min-height: 0; /* critical inside flex */
+  width: 100%;
+}
+
+/* Actual Leaflet container */
+#map {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Drawer used on mobile: off-canvas by default */
+.sidebar-drawer {
+  position: fixed;
+  top: var(--header-h);
+  right: 0;
+  bottom: var(--footer-h);
+  width: 78%;
+  max-width: 380px;
+  background: #fff;
+  z-index: 60;
+  transform: translateX(110%);
+  transition: transform 0.22s ease;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.sidebar-drawer.open {
+  transform: translateX(0);
+}
+
+/* Desktop sidebar (non-fixed) */
+.sidebar-desktop {
+  width: 320px;
+  min-width: 0;
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.banner-left {
+  max-width: 120px;
+  width: 10vw;
+  min-width: 80px;
+}
+.banner-bottom {
+  height: auto;
+  max-height: 76px;
+  padding: 4px;
+}
+
+/* Floating buttons (center, camera, burger) */
+.fab {
+  position: absolute;
+  z-index: 4000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  border-radius: 9999px;
+  padding: 0.5rem;
+}
+/* ensure touch size */
+.fab .icon {
+  font-size: 1.1rem;
+}
+
+/* Small phones <= 360px - tighten paddings */
+@media (max-width: 360px) {
+  :root {
+    --safe-gap: 8px;
+  }
+  .sidebar-drawer {
+    width: 86%;
+    max-width: 320px;
+  }
+  .banner-left {
+    display: none;
+  }
+  .banner-bottom {
+    height: 56px;
+  }
+  .fab {
+    padding: 0.4rem;
+  }
+  .map-viewport {
+    padding: 0;
+  }
+}
+
+/* Typical phones 375–420 (iPhone SE, 12 mini, etc.) */
+@media (min-width: 361px) and (max-width: 420px) {
+  .sidebar-drawer {
+    width: 82%;
+    max-width: 360px;
+  }
+  .banner-left {
+    display: none;
+  }
+  .map-viewport {
+    padding: 0 4px;
+  }
+}
+
+/* Larger phones / small tablets */
+@media (min-width: 421px) and (max-width: 767px) {
+  .sidebar-drawer {
+    width: 60%;
+    max-width: 420px;
+  }
+  .banner-left {
+    display: block;
+    max-width: 100px;
+  }
+}
+
+/* Desktop (unchanged) */
+@media (min-width: 768px) {
+  .sidebar-drawer {
+    display: none;
+  }
+  .sidebar-desktop {
+    display: block;
+  }
+  .map-viewport {
+    padding: var(--safe-gap);
+  }
+}

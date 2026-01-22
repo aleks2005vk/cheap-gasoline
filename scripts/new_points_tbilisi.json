@@ -1,0 +1,1050 @@
+[
+  {
+    "name": "Wissol",
+    "lat": 41.7864545,
+    "lng": 44.7688646,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7271703,
+    "lng": 44.7341864,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7302255,
+    "lng": 44.7582044,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7624748,
+    "lng": 44.7690712,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7111629,
+    "lng": 44.7885173,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.725307,
+    "lng": 44.7794498,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.6822892,
+    "lng": 44.8250367,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7215564,
+    "lng": 44.730129,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7675849,
+    "lng": 44.7693924,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7218741,
+    "lng": 44.7371466,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7608964,
+    "lng": 44.768235,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7989502,
+    "lng": 44.7700401,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7098827,
+    "lng": 44.7415485,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.6885805,
+    "lng": 44.8457085,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7984465,
+    "lng": 44.7712119,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7528328,
+    "lng": 44.7698605,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7542173,
+    "lng": 44.7698178,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7139387,
+    "lng": 44.7799045,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.6843603,
+    "lng": 44.8268031,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.6825373,
+    "lng": 44.8254605,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.6882365,
+    "lng": 44.8447378,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7149155,
+    "lng": 44.7895609,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7693361,
+    "lng": 44.7836763,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7208538,
+    "lng": 44.7857021,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7935466,
+    "lng": 44.7708736,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.6858731,
+    "lng": 44.8232103,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.766687,
+    "lng": 44.7908451,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.728943,
+    "lng": 44.7766399,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7267432,
+    "lng": 44.7566716,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.788878,
+    "lng": 44.8023456,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7266321,
+    "lng": 44.7798311,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Total 100",
+    "lat": 41.718516,
+    "lng": 44.7381913,
+    "description": "fuel station",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7024638,
+    "lng": 44.7999979,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7053902,
+    "lng": 44.7933145,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7532307,
+    "lng": 44.788858,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7510552,
+    "lng": 44.7774209,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7797182,
+    "lng": 44.768303,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7540205,
+    "lng": 44.7763171,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7698627,
+    "lng": 44.7789676,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7380064,
+    "lng": 44.772898,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7807153,
+    "lng": 44.7965256,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7329165,
+    "lng": 44.7751626,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7789804,
+    "lng": 44.7962605,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7842913,
+    "lng": 44.7999394,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.769377,
+    "lng": 44.7919946,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7583516,
+    "lng": 44.7826889,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7727006,
+    "lng": 44.802521,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7257012,
+    "lng": 44.7838619,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7828622,
+    "lng": 44.7686614,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7499155,
+    "lng": 44.7751445,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7294555,
+    "lng": 44.8270338,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf+",
+    "lat": 41.7224973,
+    "lng": 44.7376271,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7792256,
+    "lng": 44.7958092,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7684759,
+    "lng": 44.7695155,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7464148,
+    "lng": 44.7701465,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.6844068,
+    "lng": 44.8239734,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.6833652,
+    "lng": 44.7752598,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf+",
+    "lat": 41.7814491,
+    "lng": 44.7745622,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.6861307,
+    "lng": 44.8473972,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.6861705,
+    "lng": 44.8492482,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7210335,
+    "lng": 44.7459117,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7646322,
+    "lng": 44.7690109,
+    "description": "fuel station",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7206008,
+    "lng": 44.745918,
+    "description": "SOCAR",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7507961,
+    "lng": 44.7778183,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7255324,
+    "lng": 44.7808524,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Total 100",
+    "lat": 41.7696421,
+    "lng": 44.769372,
+    "description": "fuel station",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7849147,
+    "lng": 44.7700745,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7781066,
+    "lng": 44.7955026,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7205841,
+    "lng": 44.7242159,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Total 100",
+    "lat": 41.7697503,
+    "lng": 44.7681914,
+    "description": "ტოტალ 100",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7319586,
+    "lng": 44.7757153,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7862611,
+    "lng": 44.8008728,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.787222,
+    "lng": 44.8028845,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Total 100",
+    "lat": 41.787137,
+    "lng": 44.8032841,
+    "description": "fuel station",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.787368,
+    "lng": 44.7999381,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7152969,
+    "lng": 44.7454278,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.727576,
+    "lng": 44.7242922,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.686464,
+    "lng": 44.83801,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7769219,
+    "lng": 44.8057163,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7252445,
+    "lng": 44.7772337,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7892961,
+    "lng": 44.818587,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7293613,
+    "lng": 44.7755107,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7862648,
+    "lng": 44.7951654,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.6885783,
+    "lng": 44.8417187,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7358927,
+    "lng": 44.7740779,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7216502,
+    "lng": 44.7648502,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.75755,
+    "lng": 44.7683648,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.759353,
+    "lng": 44.7681742,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7433294,
+    "lng": 44.769475,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.6922547,
+    "lng": 44.8197221,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7503247,
+    "lng": 44.7699552,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7364532,
+    "lng": 44.8392286,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Lukoil",
+    "lat": 41.7231805,
+    "lng": 44.7456026,
+    "description": "Lukoil",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7216217,
+    "lng": 44.7462162,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.6879504,
+    "lng": 44.8222282,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7446731,
+    "lng": 44.7690597,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7766829,
+    "lng": 44.7691915,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7867158,
+    "lng": 44.8208662,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.6905946,
+    "lng": 44.8404295,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7906123,
+    "lng": 44.8141837,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7918803,
+    "lng": 44.8148516,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7858278,
+    "lng": 44.7924314,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7849432,
+    "lng": 44.7961411,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7850004,
+    "lng": 44.7985029,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7381079,
+    "lng": 44.7950342,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Rompetrol",
+    "lat": 41.7474577,
+    "lng": 44.7794824,
+    "description": "Rompetrol",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.7483118,
+    "lng": 44.7803656,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7043037,
+    "lng": 44.7945726,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7889475,
+    "lng": 44.7704289,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7323168,
+    "lng": 44.773595,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf+",
+    "lat": 41.7948115,
+    "lng": 44.7709665,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7345349,
+    "lng": 44.7795426,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7551802,
+    "lng": 44.7809139,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7556793,
+    "lng": 44.7787117,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7263243,
+    "lng": 44.7841217,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7836913,
+    "lng": 44.7687,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7798057,
+    "lng": 44.7694155,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7111269,
+    "lng": 44.7841211,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.6818131,
+    "lng": 44.8266373,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.6878923,
+    "lng": 44.8460358,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf+",
+    "lat": 41.6881658,
+    "lng": 44.850146,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7092514,
+    "lng": 44.7895978,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.762437,
+    "lng": 44.780538,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf+",
+    "lat": 41.7855706,
+    "lng": 44.7940878,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Wissol",
+    "lat": 41.6989954,
+    "lng": 44.8088346,
+    "description": "WISSOL",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7544139,
+    "lng": 44.7797916,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7552856,
+    "lng": 44.7889301,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7836043,
+    "lng": 44.7699871,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7808252,
+    "lng": 44.769612,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Gulf",
+    "lat": 41.7602687,
+    "lng": 44.7879452,
+    "description": "Gulf",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  },
+  {
+    "name": "Socar",
+    "lat": 41.7838851,
+    "lng": 44.7820075,
+    "description": "Socar",
+    "prices": null,
+    "image": "https://via.placeholder.com/120x80?text=Fuel"
+  }
+]

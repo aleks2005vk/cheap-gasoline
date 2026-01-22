@@ -1,0 +1,6 @@
+__pycache__/
+uploads/
+*.sqlite
+venv/
+env/
+.env

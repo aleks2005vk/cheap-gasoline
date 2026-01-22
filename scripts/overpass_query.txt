@@ -1,0 +1,8 @@
+[out:json][timeout:60];
+area["name"="Georgia"][admin_level=2];
+(
+  node["amenity"="fuel"](area);
+  way["amenity"="fuel"](area);
+  rel["amenity"="fuel"](area);
+);
+out center;

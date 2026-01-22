@@ -1,0 +1,6 @@
+[out:json][timeout:180];
+(node["amenity"="fuel"](41.0,40.0,43.8,46.8);
+ way["amenity"="fuel"](41.0,40.0,43.8,46.8);
+ rel["amenity"="fuel"](41.0,40.0,43.8,46.8);
+);
+out center;
