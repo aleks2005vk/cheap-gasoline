@@ -8,11 +8,5 @@
     "VITE_ENV": "production",
     "VITE_API_URL": "https://api.cheap-gasoline.com"
   },
-  "regions": ["iad1"],
-  "functions": {
-    "api/**/*.js": {
-      "memory": 512,
-      "maxDuration": 10
-    }
-  }
+  "regions": ["iad1"]
 }
