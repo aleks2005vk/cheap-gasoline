@@ -20,7 +20,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
-    minify: "terser",
+    minify: "esbuild",
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
@@ -31,8 +31,6 @@ export default defineConfig({
             "react-router-dom",
             "@reduxjs/toolkit",
             "react-redux",
-            "react-leaflet",
-            "leaflet",
           ],
           map: ["react-leaflet", "leaflet", "leaflet-markercluster"],
         },
