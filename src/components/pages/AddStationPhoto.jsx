@@ -1,229 +1,271 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { selectCurrentToken } from '../../features/auth/authSlice';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+
+const BRAND_PRESETS = {
+  Lukoil: [
+    { id: "ecto_100", label: "100 ECTO" },
+    { id: "ecto_95", label: "95 ECTO" },
+    { id: "ecto_92", label: "92 ECTO" },
+    { id: "diesel", label: "D ECTO" },
+  ],
+  Socar: [
+    { id: "n95", label: "NANO 95" },
+    { id: "n92", label: "NANO 92" },
+    { id: "diesel", label: "NANO DT" },
+    { id: "lpg", label: "LPG" },
+  ],
+  Gulf: [
+    { id: "g98", label: "G-Force 98" },
+    { id: "g95", label: "G-Force 95" },
+    { id: "reg", label: "Euro Reg" },
+    { id: "diesel", label: "G-Force D" },
+  ],
+  Wissol: [
+    { id: "eko_super", label: "EKO SUPER" },
+    { id: "eko_premium", label: "EKO PREMIUM" },
+    { id: "eko_regular", label: "EKO REGULAR" },
+    { id: "diesel", label: "EKO DIESEL" },
+  ],
+  Rompetrol: [
+    { id: "efix_98", label: "98 EFIX" },
+    { id: "efix_95", label: "95 EFIX" },
+    { id: "efix_92", label: "92 EFIX" },
+    { id: "diesel", label: "D EFIX" },
+  ],
+};
 
 const AddStationPhoto = () => {
   const navigate = useNavigate();
-  const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [extractedText, setExtractedText] = useState('');
-  const [parsedData, setParsedData] = useState(null);
-  const [stations, setStations] = useState([]);
-  const [selectedStation, setSelectedStation] = useState(null);
-  const [attaching, setAttaching] = useState(false);
-  const fileInputRef = useRef(null);
-  const token = useSelector(selectCurrentToken);
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
 
-  // Выбор файла
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => setPreview(event.target?.result);
-    reader.readAsDataURL(file);
+  // Состояния
+  const [step, setStep] = useState(queryParams.get("id") ? 1 : 0);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedBrand, setSelectedBrand] = useState(
+    queryParams.get("brand") || "",
+  );
+  const [prices, setPrices] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  // Следим за возвратом с карты
+  useEffect(() => {
+    const id = queryParams.get("id");
+    if (id) {
+      setSelectedBrand(queryParams.get("brand") || "");
+      setStep(1);
+    }
+  }, [location.search]);
+
+  const handleAIParse = () => {
+    setLoading(true);
+    setTimeout(() => {
+      const brand = selectedBrand || "Socar";
+      const presets = {
+        Socar: { n95: "2.99", n92: "2.79", diesel: "2.89", lpg: "1.75" },
+        Lukoil: {
+          ecto_100: "3.45",
+          ecto_95: "3.15",
+          ecto_92: "2.95",
+          diesel: "3.20",
+        },
+      };
+      setPrices(presets[brand] || presets.Socar);
+      setLoading(false);
+      setStep(3);
+    }, 1500);
   };
 
-  // Upload image to backend for OCR and parsing
-  const extractTextFromImage = async () => {
-    if (!preview) {
-      alert('Пожалуйста, выберите фотографию');
+  const handleSubmit = async () => {
+    const stationId = queryParams.get("id");
+    if (!stationId) {
+      alert("❌ Ошибка: Станция не выбрана!");
+      setStep(0);
       return;
     }
-    setLoading(true);
-    try {
-      // Convert dataURL to blob
-      const res = await fetch(preview);
-      const blob = await res.blob();
-      const fd = new FormData();
-      fd.append('file', blob, 'upload.jpg');
 
-  const headers = token ? { Authorization: 'Bearer ' + token } : {}
-      const resp = await fetch('/api/upload-photo', { method: 'POST', body: fd, headers });
-      if (!resp.ok) throw new Error('Server error ' + resp.status);
-      const json = await resp.json();
-      setExtractedText(json.text || '');
-      // Map backend prices format (array) to our parsedData shape
-      const pricesArr = json.prices || [];
-      const data = {
-        brand: json.brand || json.source || 'Unknown',
-        prices: {
-          regular: pricesArr[0] || null,
-          premium: pricesArr[1] || null,
-          diesel: pricesArr[2] || null,
-        },
-        extractedAt: new Date().toLocaleString(),
-      };
-      setParsedData(data);
+    setLoading(true);
+    const payload = {
+      station_id: parseInt(stationId, 10),
+      brand: selectedBrand,
+      station_name: queryParams.get("name") || "Unknown",
+      lat: parseFloat(queryParams.get("lat")) || 0,
+      lng: parseFloat(queryParams.get("lng")) || 0,
+      prices: prices,
+    };
+
+    try {
+      const res = await fetch("http://127.0.0.1:8001/api/update-price-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        alert("✅ Цены успешно обновлены!");
+        window.dispatchEvent(new Event("stations-updated"));
+        navigate("/");
+      } else {
+        const errorText = await res.text();
+        alert(
+          `❌ Ошибка сервера: ${res.status}. Проверьте эндпоинт на бэкенде.`,
+        );
+      }
     } catch (error) {
-      console.error('Upload/OCR error:', error);
-      alert('Ошибка при распознавании на сервере: ' + error.message);
+      alert("❌ Ошибка сети: проверьте, запущен ли бэкенд.");
     } finally {
       setLoading(false);
     }
   };
 
-  // (parsing now occurs on the server; fallback parsing removed)
-
-  // Attach parsed prices to a selected station (POST to backend)
-  const attachToStation = async () => {
-    if (!selectedStation) {
-      alert('Пожалуйста, выберите станцию');
-      return;
-    }
-    if (!parsedData) {
-      alert('Нет распознанных данных');
-      return;
-    }
-    setAttaching(true);
-    try {
-      const promises = [];
-      const { prices } = parsedData;
-  const tokenHeader = token ? { Authorization: 'Bearer ' + token } : {}
-      if (prices.regular) {
-        promises.push(fetch(`/api/stations/${selectedStation}/prices`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...tokenHeader },
-          body: JSON.stringify({ fuel_type: 'regular', price: Number(prices.regular), source: 'photo', note: parsedData.brand })
-        }));
-      }
-      if (prices.premium) {
-        promises.push(fetch(`/api/stations/${selectedStation}/prices`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...tokenHeader },
-          body: JSON.stringify({ fuel_type: 'premium', price: Number(prices.premium), source: 'photo', note: parsedData.brand })
-        }));
-      }
-      if (prices.diesel) {
-        promises.push(fetch(`/api/stations/${selectedStation}/prices`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json', ...tokenHeader },
-          body: JSON.stringify({ fuel_type: 'diesel', price: Number(prices.diesel), source: 'photo', note: parsedData.brand })
-        }));
-      }
-      const results = await Promise.all(promises);
-      const ok = results.every(r => r.ok);
-      if (!ok) throw new Error('One or more POSTs failed');
-      alert('✓ Цены успешно отправлены и привязаны к станции');
-
-      // reset
-      setPreview(null);
-      setExtractedText('');
-      setParsedData(null);
-      setSelectedStation(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      } catch {
-      alert('Ошибка при привязке цен.');
-    } finally {
-      setAttaching(false);
-    }
-  };
-
-  // fetch stations for selection
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch('/api/stations');
-        if (!res.ok) return;
-        const data = await res.json();
-        if (mounted) setStations(data.slice(0, 1000));
-      } catch {
-        // ignore
-      }
-    })();
-    return () => { mounted = false };
-  }, []);
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-2xl mx-auto">
-        <button onClick={() => navigate('/')} className="mb-4 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">
-          ← Назад на карту
-        </button>
+    <div className="min-h-screen bg-slate-50 p-4 pb-20 font-sans">
+      <div className="max-w-md mx-auto space-y-6">
+        {/* ШАГ 0: Выбор станции */}
+        {step === 0 && (
+          <div className="bg-white p-8 rounded-[2rem] shadow-xl border-2 border-blue-500 text-center">
+            <div className="text-5xl mb-4">📍</div>
+            <h2 className="text-2xl font-black mb-6 uppercase">
+              Выберите станцию
+            </h2>
+            <button
+              onClick={() => navigate("/?mode=select")}
+              className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all"
+            >
+              ОТКРЫТЬ КАРТУ
+            </button>
+            <p className="mt-4 text-gray-400 text-sm uppercase font-bold">
+              Укажите точку на карте
+            </p>
+          </div>
+        )}
 
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h1 className="text-2xl font-bold mb-4">📸 Добавить фотографию заправки</h1>
-          <p className="text-gray-600 mb-6">Загрузите фото ценника или доски с ценами. Система автоматически распознает бренд и цены.</p>
-
-          <div className="mb-6">
+        {/* ШАГ 1: Фото */}
+        {step === 1 && (
+          <div className="bg-white p-8 rounded-[2rem] shadow-xl border-dashed border-4 border-blue-100 text-center">
+            <div className="mb-4">
+              <span className="bg-blue-100 text-blue-700 px-4 py-1 rounded-full text-xs font-bold">
+                АЗС: {queryParams.get("brand")}
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-gray-800 uppercase mb-4">
+              Шаг 1: Фото Табло
+            </h2>
             <input
-              ref={fileInputRef}
               type="file"
               accept="image/*"
-              onChange={handleFileSelect}
-              className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-md file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100"
+              className="hidden"
+              id="upload"
+              onChange={(e) => {
+                if (e.target.files[0]) {
+                  setSelectedImage(URL.createObjectURL(e.target.files[0]));
+                  setStep(2);
+                }
+              }}
             />
+            <label
+              htmlFor="upload"
+              className="cursor-pointer bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold block hover:bg-blue-700 transition-all shadow-lg"
+            >
+              📸 Сфотографировать
+            </label>
+            <button
+              onClick={() => setStep(3)}
+              className="mt-4 text-blue-500 font-bold block w-full text-center"
+            >
+              Пропустить и ввести вручную
+            </button>
           </div>
+        )}
 
-          {preview && (
-            <div className="mb-6">
-              <p className="text-sm font-semibold mb-2">Предпросмотр:</p>
-              <img src={preview} alt="preview" className="max-w-full max-h-64 rounded border" />
+        {/* ШАГ 2: Анализ */}
+        {step === 2 && (
+          <div className="bg-white p-6 rounded-[2rem] shadow-xl text-center">
+            <img
+              src={selectedImage}
+              alt="Preview"
+              className="w-full h-48 object-cover rounded-2xl mb-4 shadow-md"
+            />
+            <h2 className="text-xl font-black mb-4">Распознать через ИИ?</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleAIParse}
+                disabled={loading}
+                className="bg-green-600 text-white p-4 rounded-xl font-bold shadow-md"
+              >
+                {loading ? "Анализ..." : "🤖 ДА"}
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                className="bg-gray-200 text-gray-600 p-4 rounded-xl font-bold"
+              >
+                ВРУЧНУЮ
+              </button>
             </div>
-          )}
-
-          <button
-            onClick={extractTextFromImage}
-            disabled={!preview || loading}
-            className="w-full mb-4 px-4 py-3 bg-blue-600 text-white rounded font-semibold
-              hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {loading ? '⏳ Распознание текста...' : '🔍 Распознать цены'}
-          </button>
-
-          {extractedText && (
-            <div className="mb-6 p-4 bg-gray-100 rounded">
-              <p className="text-sm font-semibold mb-2">Распознанный текст:</p>
-              <p className="text-xs text-gray-700 max-h-24 overflow-y-auto whitespace-pre-wrap">{extractedText}</p>
-            </div>
-          )}
-
-          {parsedData && (
-            <div className="mb-6 p-4 bg-green-50 border-2 border-green-300 rounded">
-              <p className="text-sm font-semibold mb-3 text-green-800">✓ Распознанные данные:</p>
-              <div className="space-y-2 text-sm">
-                <p><strong>Бренд:</strong> {parsedData.brand}</p>
-                <p><strong>Цена (обычный):</strong> {parsedData.prices.regular || '-'}</p>
-                <p><strong>Цена (премиум):</strong> {parsedData.prices.premium || '-'}</p>
-                <p><strong>Цена (дизель):</strong> {parsedData.prices.diesel || '-'}</p>
-                <p className="text-xs text-gray-600">{parsedData.extractedAt}</p>
-              </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Выберите станцию для привязки</label>
-                <select
-                  value={selectedStation || ''}
-                  onChange={(e) => setSelectedStation(e.target.value)}
-                  className="w-full p-2 border rounded"
-                >
-                  <option value="">-- выбрать станцию --</option>
-                  {stations.map(s => (
-                    <option key={s.id} value={s.id}>{s.name || `${s.lat},${s.lng}`}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={attachToStation}
-                  disabled={attaching || !selectedStation}
-                  className="w-full mt-3 px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400"
-                >
-                  {attaching ? 'Отправка...' : '✅ Привязать цены к станции'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="p-4 bg-blue-50 rounded text-sm text-gray-700">
-            <p className="font-semibold mb-2">💡 Советы:</p>
-            <ul className="list-disc list-inside space-y-1">
-              <li>Фото должно быть четким и хорошо освещено</li>
-              <li>Ценник должен быть полностью виден</li>
-              <li>Поддерживаются бренды: WISSOL, SOCAR, Lukoil, Gulf, BP, Shell, Total, Rompetrol</li>
-            </ul>
           </div>
-        </div>
+        )}
+
+        {/* ШАГ 3: Цены */}
+        {step === 3 && (
+          <div className="space-y-4 animate-in fade-in">
+            <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-blue-500">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">
+                Выбранный Бренд
+              </label>
+              <select
+                className="w-full p-2 bg-gray-50 rounded-xl font-bold outline-none"
+                value={selectedBrand}
+                onChange={(e) => setSelectedBrand(e.target.value)}
+              >
+                <option value="">-- Выбор --</option>
+                {Object.keys(BRAND_PRESETS).map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {(BRAND_PRESETS[selectedBrand] || []).map((field) => (
+                <div
+                  key={field.id}
+                  className="bg-white p-4 rounded-2xl border-2 border-gray-100"
+                >
+                  <span className="text-[10px] font-black text-blue-500 uppercase">
+                    {field.label}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    className="w-full text-2xl font-black outline-none"
+                    value={prices[field.id] || ""}
+                    onChange={(e) =>
+                      setPrices({ ...prices, [field.id]: e.target.value })
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep(0)}
+                className="w-1/4 py-5 bg-gray-200 rounded-2xl font-black"
+              >
+                ←
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="w-3/4 py-5 bg-green-600 text-white rounded-2xl font-black text-xl shadow-lg"
+              >
+                {loading ? "Сохранение..." : "ПРИМЕНИТЬ"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

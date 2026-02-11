@@ -1,103 +1,168 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux'
-import { selectCurrentUser, selectCurrentToken, logout } from '../../../features/auth/authSlice'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { selectCurrentUser, logout } from "../../../features/auth/authSlice";
 
 export default function Navbar() {
-  const user = useSelector(selectCurrentUser)
-  const token = useSelector(selectCurrentToken)
-  const dispatch = useDispatch()
-  const navigate = useNavigate()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const user = useSelector(selectCurrentUser);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  // --- ИСПРАВЛЕНИЕ ---
+  // Мы просто проверяем, есть ли объект user.
+  // Если Redux не пустой, значит мы авторизованы.
+  const isAuth = !!user;
+
+  // Отладка: посмотри в консоль браузера (F12), что там выводится
+  useEffect(() => {
+    console.log("Navbar Auth State:", { isAuth, user });
+  }, [isAuth, user]);
+
+  const handleLogout = () => {
+    dispatch(logout());
+    navigate("/");
+    setProfileMenuOpen(false);
+  };
 
   return (
-    <header className="bg-gray-800 text-white">
+    <header className="bg-[#1f2937] text-white shadow-md relative z-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          <div className="md:flex md:items-center md:gap-12">
-            <Link className="block text-teal-600 dark:text-teal-600" to="/">
-              <span className="sr-only">Home</span>
-              {/* svg... */}
+          {/* ЛОГОТИП */}
+          <div className="flex items-center gap-8">
+            <Link className="flex items-center gap-2 group" to="/">
+              <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center group-hover:bg-teal-400 transition shadow-lg shadow-teal-500/20">
+                <span className="text-white font-bold text-lg">▲</span>
+              </div>
+              <span className="font-bold text-xl tracking-tight text-gray-100 group-hover:text-white">
+                GasApp
+              </span>
             </Link>
-          </div>
 
-          <div className="hidden md:block">
-            <nav aria-label="Global">
-              <ul className="flex items-center gap-6 text-sm">
-                <li><a href="#">About</a></li>
-                <li><a href="#">Careers</a></li>
-                <li><a href="#">History</a></li>
-                <li><a href="#">Services</a></li>
-                <li><a href="#">Projects</a></li>
-                <li><a href="#">Blog</a></li>
+            {/* НАВИГАЦИЯ (DESKTOP) */}
+            <nav className="hidden md:block">
+              <ul className="flex items-center gap-6 text-sm font-medium text-gray-400">
+                <li>
+                  <Link to="/map" className="hover:text-teal-400 transition">
+                    Карта
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/services"
+                    className="hover:text-teal-400 transition"
+                  >
+                    Сервисы
+                  </Link>
+                </li>
               </ul>
             </nav>
           </div>
 
+          {/* ПРАВАЯ ЧАСТЬ */}
           <div className="flex items-center gap-4">
-            <div className="sm:flex sm:gap-4">
-              <Link to="/add-station-photo" className="rounded-md bg-green-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-green-700" title="Add gas station photos">
-                📸 Добавить фото
-              </Link>
+            {/* Кнопка Добавить фото (всегда видна) */}
+            <Link
+              to="/add-photo"
+              className="hidden sm:flex items-center gap-2 rounded-full bg-gray-700/50 px-4 py-2 text-sm font-medium text-green-400 hover:bg-gray-700 hover:text-green-300 transition border border-gray-600"
+            >
+              <span>📸</span>
+              <span>Добавить фото</span>
+            </Link>
 
-              {user && token ? (
-                <div className="flex items-center gap-3">
-                  <button type="button" onClick={() => navigate('/profile')} className="flex items-center gap-2 hover:opacity-80" title="Профиль">
-                    {user.avatar ? (
-                      <img src={user.avatar} alt={user.name || 'User'} className="w-8 h-8 rounded-full object-cover" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-sm text-gray-600">{(user.name || user.email || 'U')[0]}</div>
-                    )}
-                  </button>
-                  <button onClick={() => { dispatch(logout()); navigate('/') }} className="text-sm text-gray-200 hover:underline">Выход</button>
-                </div>
-              ) : (
-                <>
-                  <Link className="rounded-md bg-teal-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm dark:hover:bg-teal-500" to="/login">Login</Link>
-                  <div className="hidden sm:flex">
-                    <Link className="rounded-md bg-gray-100 px-5 py-2.5 text-sm font-medium text-teal-600 dark:bg-gray-800 dark:text-white dark:hover:text-white/75" to="/userloginform">Register</Link>
+            <div className="h-6 w-[1px] bg-gray-700 mx-2 hidden sm:block"></div>
+
+            {/* БЛОК АВТОРИЗАЦИИ */}
+            {isAuth ? (
+              <div className="relative">
+                <button
+                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                  className="flex items-center gap-3 group focus:outline-none"
+                >
+                  <div className="flex flex-col items-end leading-none hidden md:flex">
+                    <span className="text-sm font-bold text-gray-200 group-hover:text-white transition">
+                      {user.name || user.email?.split("@")[0] || "User"}
+                    </span>
+                    <span className="text-[10px] text-teal-500 font-medium uppercase tracking-wider">
+                      Online
+                    </span>
                   </div>
-                </>
-              )}
-            </div>
 
-            {/* Mobile menu button */}
-            <div className="block md:hidden">
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="rounded-sm bg-gray-100 p-2 text-gray-600 transition hover:text-gray-600/75 dark:bg-gray-800 dark:text-white dark:hover:text-white/75"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-500 p-[2px] shadow-lg shadow-teal-500/20 group-hover:shadow-teal-500/40 transition">
+                    <div className="w-full h-full rounded-full bg-[#1f2937] flex items-center justify-center overflow-hidden">
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          className="w-full h-full object-cover"
+                          alt="avatar"
+                        />
+                      ) : (
+                        <span className="text-teal-500 font-bold text-lg">
+                          {(user.name || user.email || "U")[0].toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
 
-              {/* Mobile menu */}
-              {mobileMenuOpen && (
-                <div className="absolute top-16 right-0 z-50 w-64 bg-gray-800 shadow-lg p-4 flex flex-col gap-4">
-                  <Link onClick={() => setMobileMenuOpen(false)} to="/">Home</Link>
-                  <Link onClick={() => setMobileMenuOpen(false)} to="#">About</Link>
-                  <Link onClick={() => setMobileMenuOpen(false)} to="#">Services</Link>
-                  <Link onClick={() => setMobileMenuOpen(false)} to="#">Projects</Link>
-                  <Link onClick={() => setMobileMenuOpen(false)} to="#">Blog</Link>
-                  {user && token ? (
-                    <>
-                      <button onClick={() => { navigate('/profile'); setMobileMenuOpen(false); }}>Профиль</button>
-                      <button onClick={() => { dispatch(logout()); navigate('/'); setMobileMenuOpen(false); }}>Выход</button>
-                    </>
-                  ) : (
-                    <>
-                      <Link to="/login" onClick={() => setMobileMenuOpen(false)}>Login</Link>
-                      <Link to="/userloginform" onClick={() => setMobileMenuOpen(false)}>Register</Link>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+                {/* ВЫПАДАЮЩЕЕ МЕНЮ */}
+                {profileMenuOpen && (
+                  <>
+                    {/* Прозрачная подложка, чтобы закрыть кликом вне меню */}
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setProfileMenuOpen(false)}
+                    ></div>
+
+                    <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100 transform origin-top-right transition-all">
+                      <div className="px-4 py-3 border-b border-gray-100 mb-1">
+                        <p className="text-sm text-gray-500">Вы вошли как</p>
+                        <p className="text-sm font-bold text-gray-900 truncate">
+                          {user.email}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          navigate("/profile");
+                          setProfileMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-teal-600 transition flex items-center gap-3"
+                      >
+                        👤 Профиль
+                      </button>
+
+                      <button
+                        onClick={handleLogout}
+                        className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition flex items-center gap-3 font-medium"
+                      >
+                        🚪 Выйти
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              // ЕСЛИ НЕ АВТОРИЗОВАН
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/login"
+                  className="text-gray-300 hover:text-white font-medium text-sm transition px-2"
+                >
+                  Войти
+                </Link>
+                <Link
+                  to="/register"
+                  className="rounded-full bg-teal-500 px-5 py-2 text-sm font-bold text-white hover:bg-teal-400 transition shadow-lg shadow-teal-500/25"
+                >
+                  Регистрация
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </header>
-  )
+  );
 }

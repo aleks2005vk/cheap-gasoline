@@ -1,197 +1,193 @@
 import os
-from datetime import timedelta
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+import json
+import datetime
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List
-from sqlmodel import select
-from . import database, models, ocr_utils
-from sqlmodel import Session
-from . import auth_utils
-from fastapi.security import OAuth2PasswordBearer
-from fastapi import status
-from fastapi import Depends
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-
-def get_current_user(token: str = Depends(oauth2_scheme)) -> models.User:
-    try:
-        payload = auth_utils.decode_access_token(token)
-        user_id = int(payload.get('sub'))
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')
-    with database.get_session() as session:
-        user = session.get(models.User, user_id)
-        if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='User not found')
-        return user
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean, text
+from sqlalchemy.orm import sessionmaker, Session, relationship
+from sqlalchemy.ext.declarative import declarative_base
 from pydantic import BaseModel
-from fastapi.responses import FileResponse
+from typing import Dict, Any, List, Optional
+from fastapi.responses import JSONResponse
 
-app = FastAPI(title="Cheap Gasoline Backend")
+# --- CONFIG ---
+SQLALCHEMY_DATABASE_URL = "sqlite:///./cheap_gasoline.db"
 
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+# --- MODELS ---
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True)
+    name = Column(String, nullable=True)
+    hashed_password = Column(String)
+    is_admin = Column(Boolean, default=False)
+    updates = relationship("PriceUpdate", back_populates="author")
+
+class Station(Base):
+    __tablename__ = "station"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    brand = Column(String)
+    lat = Column(Float)
+    lng = Column(Float)
+    fuel_config = Column(String)
+
+class PriceUpdate(Base):
+    __tablename__ = "priceupdate"
+    id = Column(Integer, primary_key=True, index=True)
+    station_id = Column(Integer, ForeignKey("station.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    fuel_type = Column(String)
+    price = Column(Float)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    source = Column(String, default="manual_update")
+    author = relationship("User", back_populates="updates")
+
+# Создаем таблицы
+Base.metadata.create_all(bind=engine)
+
+# --- АВТОМАТИЧЕСКАЯ МИГРАЦИЯ ---
+def migrate_db():
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR"))
+            conn.commit()
+            print("✅ Колонка 'name' добавлена")
+        except: pass
+        try:
+            conn.execute(text("ALTER TABLE priceupdate ADD COLUMN user_id INTEGER REFERENCES users(id)"))
+            conn.commit()
+            print("✅ Колонка 'user_id' добавлена")
+        except: pass
+
+migrate_db()
+
+app = FastAPI()
+
+# --- CORS ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_ORIGINS", "*")],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+def get_db():
+    db = SessionLocal()
+    try: yield db
+    finally: db.close()
 
+# --- SCHEMAS ---
+class UserAuth(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
 
-@app.on_event("startup")
-def on_startup():
-    database.init_db()
-    # If Tesseract is installed in common Windows location, set env var so pytesseract finds it
-    default_tess = r"C:\Users\User\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
-    if os.path.exists(default_tess) and not os.environ.get('TESSERACT_CMD'):
-        os.environ['TESSERACT_CMD'] = default_tess
+# Схема для получения цен с фронтенда
+class ManualPriceUpdate(BaseModel):
+    station_id: int
+    brand: str
+    prices: Dict[str, str] # пример: {"n95": "2.95", "diesel": "2.80"}
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    station_name: Optional[str] = None
 
+# --- РОУТЫ АВТОРИЗАЦИИ ---
 
-@app.get("/")
-def root():
-    return {"message": "Cheap Gasoline API running. See /docs for interactive API."}
+@app.post("/api/auth/register")
+async def register(data: UserAuth, db: Session = Depends(get_db)):
+    try:
+        user_exists = db.query(User).filter(User.email == data.email).first()
+        if user_exists:
+            return JSONResponse(status_code=400, content={"detail": "Этот Email уже занят"})
+        
+        new_user = User(
+            email=data.email, 
+            name=data.name if data.name else data.email.split('@')[0], 
+            hashed_password=data.password
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return {"token": "fake-jwt", "user": {"email": new_user.email, "name": new_user.name}}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"detail": str(e)})
 
+@app.post("/api/auth/login")
+async def login(data: UserAuth, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email, User.hashed_password == data.password).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Неверный логин или пароль")
+    return {"token": "fake-jwt", "user": {"email": user.email, "name": user.name}}
 
+# --- РОУТ ОБНОВЛЕНИЯ ЦЕН (ТО ЧТО ТЫ ИСКАЛ) ---
+
+@app.post("/api/update-price-manual")
+async def update_price_manual(data: ManualPriceUpdate, db: Session = Depends(get_db)):
+    try:
+        # Проверяем, существует ли станция
+        station = db.query(Station).filter(Station.id == data.station_id).first()
+        if not station:
+            # Если станции нет, можно её создать (опционально)
+            raise HTTPException(status_code=404, detail="Станция не найдена в базе")
+
+        # Сохраняем каждую цену из словаря prices
+        for fuel_type, price_val in data.prices.items():
+            if not price_val or price_val == "—": continue
+            
+            new_update = PriceUpdate(
+                station_id=data.station_id,
+                fuel_type=fuel_type,
+                price=float(price_val),
+                timestamp=datetime.datetime.utcnow(),
+                source="user_photo"
+            )
+            db.add(new_update)
+        
+        db.commit()
+        return {"status": "success", "message": "Цены успешно обновлены"}
+    except Exception as e:
+        db.rollback()
+        print(f"Ошибка при обновлении цен: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- СПИСОК СТАНЦИЙ ---
 @app.get("/api/stations")
-def list_stations():
-    with database.get_session() as session:
-        stmt = select(models.Station)
-        results = session.exec(stmt).all()
-        return results
+def list_stations(db: Session = Depends(get_db)):
+    stations = db.query(Station).all()
+    res = []
+    for s in stations:
+        prices_list = []
+        try:
+            config = json.loads(s.fuel_config or "[]")
+            for f in config:
+                fid = f.get('id')
+                p = db.query(PriceUpdate).filter(
+                    PriceUpdate.station_id == s.id, 
+                    PriceUpdate.fuel_type == fid
+                ).order_by(PriceUpdate.timestamp.desc()).first()
+                prices_list.append({
+                    "type": f.get('label', fid), 
+                    "price": str(p.price) if p else "—",
+                    "id": fid
+                })
+        except: pass
+        res.append({
+            "id": s.id, 
+            "name": s.name, 
+            "brand": s.brand, 
+            "lat": s.lat, 
+            "lng": s.lng, 
+            "prices": prices_list
+        })
+    return res
 
-
-@app.get("/api/stations/{station_id}")
-def get_station(station_id: int):
-    with database.get_session() as session:
-        station = session.get(models.Station, station_id)
-        if not station:
-            raise HTTPException(status_code=404, detail="Station not found")
-        return station
-
-
-@app.post("/api/stations")
-def create_station(station: models.Station):
-    with database.get_session() as session:
-        session.add(station)
-        session.commit()
-        session.refresh(station)
-        return station
-
-
-@app.post("/api/stations/{station_id}/prices")
-def add_price(station_id: int, price_update: models.PriceUpdate, current_user: models.User = Depends(get_current_user)):
-    # attach a price update to a station
-    with database.get_session() as session:
-        station = session.get(models.Station, station_id)
-        if not station:
-            raise HTTPException(status_code=404, detail="Station not found")
-        price_update.station_id = station_id
-        session.add(price_update)
-        session.commit()
-        session.refresh(price_update)
-        return price_update
-
-
-# --- AUTH endpoints -------------------------------------------------
-
-
-class RegisterIn(BaseModel):
-    email: str
-    password: str
-    name: str | None = None
-    avatar: str | None = None
-
-
-class TokenResp(BaseModel):
-    user: dict
-    accessToken: str
-
-
-@app.post('/api/auth/register', response_model=TokenResp)
-def register(in_data: RegisterIn):
-    try:
-        # Validate password length (bcrypt has 72 byte limit)
-        if len(in_data.password.encode('utf-8')) > 72:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Password is too long (max 72 bytes)')
-        
-        with database.get_session() as session:
-            existing = session.exec(select(models.User).where(models.User.email == in_data.email)).first()
-            if existing:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Email already registered')
-            hashed = auth_utils.get_password_hash(in_data.password)
-            user = models.User(email=in_data.email, name=in_data.name, hashed_password=hashed, avatar=in_data.avatar)
-            session.add(user)
-            session.commit()
-            session.refresh(user)
-            token = auth_utils.create_access_token({'sub': str(user.id)})
-            return {'user': {'id': user.id, 'email': user.email, 'name': user.name, 'avatar': user.avatar}, 'accessToken': token}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Registration error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-class LoginIn(BaseModel):
-    email: str
-    password: str
-
-
-@app.post('/api/auth/login', response_model=TokenResp)
-def login(in_data: LoginIn):
-    try:
-        # Validate password length (bcrypt has 72 byte limit)
-        if len(in_data.password.encode('utf-8')) > 72:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Password is too long (max 72 bytes)')
-        
-        with database.get_session() as session:
-            user = session.exec(select(models.User).where(models.User.email == in_data.email)).first()
-            if not user or not user.hashed_password or not auth_utils.verify_password(in_data.password, user.hashed_password):
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid credentials')
-            token = auth_utils.create_access_token({'sub': str(user.id)})
-            return {'user': {'id': user.id, 'email': user.email, 'name': user.name, 'avatar': user.avatar}, 'accessToken': token}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Login error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-
-@app.post("/api/upload-photo")
-def upload_photo(file: UploadFile = File(...)):
-    # Save file
-    suffix = os.path.splitext(file.filename)[1]
-    dest_path = os.path.join(UPLOAD_DIR, f"upload_{os.urandom(6).hex()}{suffix}")
-    with open(dest_path, "wb") as f:
-        f.write(file.file.read())
-
-    # OCR
-    try:
-        text = ocr_utils.extract_text(dest_path)
-        prices = ocr_utils.parse_prices(text)
-    except Exception as e:
-        # Log full traceback to console for debugging
-        import traceback
-        print(f"OCR error processing file {dest_path}: {e}")
-        traceback.print_exc()
-        # Return a concise error message to client
-        raise HTTPException(status_code=500, detail=f"OCR failed: {type(e).__name__}: {str(e)}")
-
-    return {"filename": os.path.basename(dest_path), "text": text, "prices": prices}
-
-
-@app.get("/api/uploads/{filename}")
-def get_upload(filename: str):
-    fpath = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(fpath):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(fpath)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8001)

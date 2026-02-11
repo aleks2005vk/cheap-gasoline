@@ -27,6 +27,7 @@ https://vercel.com/dashboard
 Нажать кнопку **Add new** и заполнить:
 
 ### Для разработки (Development):
+
 ```
 Name:         VITE_API_URL
 Value:        http://localhost:8001
@@ -34,6 +35,7 @@ Environments: ✓ Development
 ```
 
 ### Для production (Production):
+
 ```
 Name:         VITE_API_URL
 Value:        https://your-backend-url.com
@@ -42,6 +44,7 @@ Environments: ✓ Production
 ```
 
 **Примеры Backend URL:**
+
 - Railway: `https://cheap-gasoline-api-production.up.railway.app`
 - Render: `https://cheap-gasoline-api.onrender.com`
 - Heroku: `https://cheap-gasoline-api.herokuapp.com`
@@ -51,10 +54,10 @@ Environments: ✓ Production
 
 ## 📝 Какие переменные добавить:
 
-| Переменная | Значение | Обязательна |
-|-----------|---------|-----------|
-| `VITE_API_URL` | Backend URL | ✅ Да |
-| `VITE_ENV` | `production` | ⚠️ Опционально |
+| Переменная       | Значение     | Обязательна               |
+| ---------------- | ------------ | ------------------------- |
+| `VITE_API_URL`   | Backend URL  | ✅ Да                     |
+| `VITE_ENV`       | `production` | ⚠️ Опционально            |
 | `VITE_MAP_TOKEN` | Mapbox token | ⚠️ Если используешь карты |
 
 ---
@@ -97,4 +100,3 @@ npm run dev
 2. Перезапустить deployment:
    - Redeploy
 3. Проверить что переменная точно добавлена в нужном окружении
-

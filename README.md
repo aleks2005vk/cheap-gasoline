@@ -127,7 +127,7 @@ Total Commits: 203 | Active Days: 61 | Avg Commits/Week: 18
 Create `.env` file in root:
 
 ```env
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8001
 VITE_MAP_TOKEN=your_mapbox_token
 PYTHON_ENV=development
 DB_URL=sqlite:///./cheap_gasoline.db

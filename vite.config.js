@@ -26,10 +26,10 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           // Поместить react-leaflet и leaflet в vendor чанк
-          if (id.includes('react-leaflet') || id.includes('leaflet')) {
-            return 'vendor';
+          if (id.includes("react-leaflet") || id.includes("leaflet")) {
+            return "vendor";
           }
-        }
+        },
       },
     },
   },

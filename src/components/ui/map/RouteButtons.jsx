@@ -2,8 +2,8 @@ import React, { useCallback } from "react";
 
 const buildCoords = (obj) => {
   if (!obj) return null;
-  const lat = obj.lat ?? obj.latitude ?? obj[0];
-  const lng = obj.lng ?? obj.longitude ?? obj[1];
+  const lat = obj.lat ?? obj.latitude ?? (Array.isArray(obj) ? obj[0] : null);
+  const lng = obj.lng ?? obj.longitude ?? (Array.isArray(obj) ? obj[1] : null);
   if (lat == null || lng == null) return null;
   return { lat, lng };
 };
@@ -11,120 +11,123 @@ const buildCoords = (obj) => {
 const RouteButtons = ({ userLocation, selectedPoint }) => {
   const user = buildCoords(userLocation);
   const point = buildCoords(selectedPoint);
-  if (!user || !point) return null;
 
-  const { lat: userLat, lng: userLng } = user;
-  const { lat: pointLat, lng: pointLng } = point;
-  const name = selectedPoint?.name ?? "Точка";
+  const name = selectedPoint?.name ?? "АЗС";
 
   const openUrl = useCallback((url) => {
     const newWindow = window.open(url, "_blank", "noopener,noreferrer");
-    if (!newWindow) {
-      // fallback if popups blocked
-      window.location.href = url;
-    }
+    if (!newWindow) window.location.href = url;
   }, []);
 
-  const openGoogle = useCallback(() => {
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
-      `${userLat},${userLng}`
-    )}&destination=${encodeURIComponent(
-      `${pointLat},${pointLng}`
-    )}&travelmode=driving`;
-    openUrl(url);
-  }, [userLat, userLng, pointLat, pointLng, openUrl]);
+  // Если нет координат пользователя, показываем упрощенные кнопки (только до точки)
+  const uLat = user?.lat;
+  const uLng = user?.lng;
+  const pLat = point?.lat;
+  const pLng = point?.lng;
 
-  const openYandex = useCallback(() => {
-    const url = `https://yandex.ru/maps/?rtext=${encodeURIComponent(
-      `${userLat},${userLng}~${pointLat},${pointLng}`
-    )}&rtt=auto`;
-    openUrl(url);
-  }, [userLat, userLng, pointLat, pointLng, openUrl]);
+  if (!pLat || !pLng) return null;
 
-  const openWaze = useCallback(() => {
-    // Waze supports direct navigate link
-    const url = `https://waze.com/ul?ll=${encodeURIComponent(
-      `${pointLat},${pointLng}`
-    )}&navigate=yes`;
+  const openYandex = () => {
+    const url = uLat
+      ? `https://yandex.ru/maps/?rtext=${uLat},${uLng}~${pLat},${pLng}&rtt=auto`
+      : `yandexnavi://build_route_on_map?lat_to=${pLat}&lon_to=${pLng}`;
     openUrl(url);
-  }, [pointLat, pointLng, openUrl]);
+  };
 
-  const openOSM = useCallback(() => {
-    const url = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${encodeURIComponent(
-      `${userLat},${userLng};${pointLat},${pointLng}`
-    )}`;
+  const openGoogle = () => {
+    // Исправленный URL для Google Maps
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLng}&travelmode=driving`;
     openUrl(url);
-  }, [userLat, userLng, pointLat, pointLng, openUrl]);
+  };
 
-  const onShare = useCallback(async () => {
-    const shareUrl = `https://www.google.com/maps/dir/${userLat},${userLng}/${pointLat},${pointLng}`;
-    const title = `Маршрут до ${name}`;
+  const openApple = () => {
+    const url = `http://maps.apple.com/?daddr=${pLat},${pLng}&dirflg=d`;
+    openUrl(url);
+  };
+
+  const openWaze = () =>
+    openUrl(`https://waze.com/ul?ll=${pLat},${pLng}&navigate=yes`);
+
+  const onShare = async () => {
+    const shareUrl = `https://www.google.com/maps/search/?api=1&query=${pLat},${pLng}`;
     try {
       if (navigator.share) {
         await navigator.share({
-          title,
-          text: `Маршрут до ${name}`,
+          title: name,
+          text: `АЗС ${name}. Цены на топливо в реальном времени:`,
           url: shareUrl,
         });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(shareUrl);
-        alert("Ссылка на маршрут скопирована в буфер обмена");
       } else {
-        window.prompt("Скопируй ссылку на маршрут:", shareUrl);
+        await navigator.clipboard.writeText(shareUrl);
+        alert("Ссылка скопирована!");
       }
     } catch (e) {
-      // ignore or optionally show a non-blocking toast
-      console.warn("share failed", e);
+      console.warn(e);
     }
-  }, [userLat, userLng, pointLat, pointLng, name]);
+  };
 
   return (
-    <div
-      className="bg-gradient-to-b from-blue-50 to-white border-t-2 border-blue-300 p-4 mt-4 rounded-t-lg"
-      role="region"
-      aria-label={`Маршрут до ${name}`}
-    >
-      <p className="text-sm font-bold mb-3 text-gray-800">📍 {name}</p>
+    <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      {!user && (
+        <p className="text-[10px] text-center text-amber-600 font-medium bg-amber-50 py-1 rounded-lg">
+          Маршрут будет точнее, если включить GPS
+        </p>
+      )}
 
-      <div className="flex flex-col gap-2">
-        <button
-          onClick={openGoogle}
-          className="w-full px-4 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition transform hover:scale-105 active:scale-95 shadow-md"
-          aria-label={`Открыть маршрут в Google Maps до ${name}`}
-        >
-          Показать в Google Maps
-        </button>
-
+      <div className="grid grid-cols-2 gap-2">
         <button
           onClick={openYandex}
-          className="w-full px-4 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition transform hover:scale-105 active:scale-95 shadow-md"
-          aria-label={`Открыть маршрут в Яндекс.Картах до ${name}`}
+          className="flex items-center justify-center p-3 bg-[#ffdb4d] hover:bg-[#ffcc00] rounded-2xl transition-all active:scale-95 shadow-sm"
         >
-          Показать маршрут в Яндекс Картах
+          <span className="text-[11px] font-black uppercase text-black">
+            Яндекс
+          </span>
         </button>
 
         <button
-          onClick={openWaze}
-          className="w-full px-4 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition transform hover:scale-105 active:scale-95 shadow-md"
-          aria-label={`Открыть маршрут в Waze до ${name}`}
+          onClick={openGoogle}
+          className="flex items-center justify-center p-3 bg-[#4285F4] hover:bg-[#357ae8] rounded-2xl transition-all active:scale-95 shadow-sm"
         >
-          Открыть в Waze
+          <span className="text-[11px] font-black uppercase text-white">
+            Google
+          </span>
         </button>
 
         <button
-          onClick={openOSM}
-          className="w-full px-4 py-3 bg-gray-800 text-white font-semibold rounded-lg hover:bg-gray-900 transition transform hover:scale-105 active:scale-95 shadow-md"
-          aria-label={`Открыть маршрут в OpenStreetMap до ${name}`}
+          onClick={openApple}
+          className="flex items-center justify-center p-3 bg-black hover:bg-gray-800 rounded-2xl transition-all active:scale-95 shadow-sm"
         >
-          Открыть в OpenStreetMap
+          <span className="text-[11px] font-black uppercase text-white">
+            Apple
+          </span>
         </button>
 
         <button
           onClick={onShare}
-          className="w-full px-4 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition transform hover:scale-105 active:scale-95 shadow-md"
-          aria-label={`Поделиться маршрутом до ${name}`}
+          className="flex items-center justify-center p-3 bg-white hover:bg-gray-50 rounded-2xl transition-all active:scale-95 border border-gray-200 shadow-sm"
         >
-          Поделиться
+          <span className="text-[11px] font-black uppercase text-gray-700">
+            Поделиться
+          </span>
+        </button>
+      </div>
+
+      <div className="flex justify-center gap-6 pt-1">
+        <button
+          onClick={openWaze}
+          className="text-[10px] text-blue-500 font-black uppercase tracking-widest hover:opacity-70"
+        >
+          Waze
+        </button>
+        <button
+          onClick={() =>
+            openUrl(
+              `https://www.openstreetmap.org/directions?route=${uLat || ""},${uLng || ""};${pLat},${pLng}`,
+            )
+          }
+          className="text-[10px] text-gray-400 font-black uppercase tracking-widest hover:opacity-70"
+        >
+          OSM
         </button>
       </div>
     </div>

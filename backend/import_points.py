@@ -1,52 +1,112 @@
-"""Import `points.js` entries into the backend SQLite database.
-
-Usage:
-  python backend/import_points.py
-
-This script runs the Node exporter to produce JSON and then inserts stations into the DB.
-"""
 import json
-import subprocess
 import os
 import sys
+import datetime
+from typing import Optional
+from sqlmodel import SQLModel, Field, create_engine, Session, select, delete
 
+# Настройка путей
 HERE = os.path.dirname(__file__)
-NODE_EXPORT = os.path.join(HERE, 'export_points.mjs')
+POINTS_JSON_PATH = os.path.join(HERE, 'points.json')
+DATABASE_URL = "sqlite:///./cheap_gasoline.db"
+engine = create_engine(DATABASE_URL)
 
-def get_points_json():
-    cmd = ['node', NODE_EXPORT]
-    proc = subprocess.run(cmd, cwd=HERE, capture_output=True, text=True)
-    if proc.returncode != 0:
-        print('Error running node export:', proc.stderr, file=sys.stderr)
-        sys.exit(proc.returncode)
-    return json.loads(proc.stdout)
+# --- МОДЕЛИ ДЛЯ ИМПОРТА (Синхронизировано с main.py) ---
+class Station(SQLModel, table=True):
+    __tablename__ = "station"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    brand: Optional[str] = None
+    lat: float
+    lng: float
+    address: Optional[str] = None
+    fuel_config: Optional[str] = None
 
-def import_into_db(points):
-    # Lazy import to avoid requiring DB libs unless running the import
-    import sys
-    sys.path.insert(0, HERE)
-    from database import get_session, init_db
-    from models import Station
+class PriceUpdate(SQLModel, table=True):
+    __tablename__ = "priceupdate"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    station_id: int = Field(foreign_key="station.id")
+    fuel_type: str
+    price: float
+    timestamp: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+    source: str = "initial_import"
 
-    init_db()
-    session = get_session()
-    added = 0
-    for p in points:
-        try:
-            name = p.get('name') or p.get('description') or 'Unknown'
-            lat = float(p.get('lat'))
-            lng = float(p.get('lng'))
-        except Exception:
-            continue
-        station = Station(name=name, brand=p.get('name'), lat=lat, lng=lng, address=p.get('description'))
-        session.add(station)
-        added += 1
-    session.commit()
-    print(f'Imported {added} stations')
+# Правила кнопок
+FUEL_RULES = {
+    "lukoil": [
+        {"id": "regular", "label": "92 Ecto", "icon": "🟢"},
+        {"id": "premium", "label": "95 Ecto", "icon": "🟡"},
+        {"id": "super", "label": "98 Ecto", "icon": "🔴"},
+        {"id": "diesel", "label": "ED Ecto", "icon": "⚫"}
+    ],
+    "wissol": [
+        {"id": "super", "label": "EKO Super", "icon": "🔴"},
+        {"id": "premium", "label": "EKO Premium", "icon": "🟡"},
+        {"id": "regular", "label": "Euro Regular", "icon": "🟢"},
+        {"id": "diesel", "label": "EKO Diesel", "icon": "⚫"}
+    ],
+    "default": [
+        {"id": "regular", "label": "Regular", "icon": "🟢"},
+        {"id": "premium", "label": "Premium", "icon": "🟡"},
+        {"id": "diesel", "label": "Diesel", "icon": "⚫"}
+    ]
+}
 
-def main():
-    points = get_points_json()
-    import_into_db(points)
+def import_into_db():
+    # Создаем таблицы с правильной структурой
+    SQLModel.metadata.drop_all(engine) # На всякий случай удаляем старое
+    SQLModel.metadata.create_all(engine)
+    
+    if not os.path.exists(POINTS_JSON_PATH):
+        print(f"Файл не найден: {POINTS_JSON_PATH}")
+        return
+
+    # Читаем JSON (используем utf-16 так как у тебя файл в ней)
+    with open(POINTS_JSON_PATH, 'r', encoding='utf-16') as f:
+        points = json.load(f)
+
+    with Session(engine) as session:
+        added_count = 0
+        for p in points:
+            name = p.get('name', 'Unknown')
+            name_lower = name.lower()
+            
+            # Определяем конфиг кнопок
+            config = FUEL_RULES["default"]
+            brand_found = "Other"
+            for b_key in ["lukoil", "wissol", "gulf", "socar", "rompetrol"]:
+                if b_key in name_lower:
+                    config = FUEL_RULES.get(b_key, FUEL_RULES["default"])
+                    brand_found = b_key.capitalize()
+                    break
+            
+            station = Station(
+                name=name,
+                brand=brand_found,
+                lat=p.get('lat'),
+                lng=p.get('lng'),
+                address=p.get('description'),
+                fuel_config=json.dumps(config)
+            )
+            session.add(station)
+            session.flush()
+            
+            # Добавляем начальные цены
+            prices = p.get('prices', {})
+            if prices and isinstance(prices, dict):
+                for f_type, f_price in prices.items():
+                    if f_price:
+                        upd = PriceUpdate(
+                            station_id=station.id, 
+                            fuel_type=f_type, 
+                            price=float(f_price)
+                        )
+                        session.add(upd)
+            
+            added_count += 1
+        
+        session.commit()
+        print(f"Успешно импортировано {added_count} станций!")
 
 if __name__ == '__main__':
-    main()
+    import_into_db()

@@ -1,439 +1,178 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-// Fix default icon paths for bundlers (Vite) so markers are visible
-import iconUrl from "leaflet/dist/images/marker-icon.png";
-import iconRetinaUrl from "leaflet/dist/images/marker-icon-2x.png";
-import shadowUrl from "leaflet/dist/images/marker-shadow.png";
-if (L && L.Icon && L.Icon.Default) {
-  L.Icon.Default.mergeOptions({
-    iconUrl,
-    iconRetinaUrl,
-    shadowUrl,
-  });
-}
-import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
+import "leaflet.markercluster";
 import MapSidebar from "./MapSidebar";
-import BannerLeft from "./BannerLeft";
-import BannerBottom from "./BannerBottom";
-import PopupAd from "./PopupAd";
-import { pointsOfInterest } from "./points";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
-// Config
-const MAX_VISIBLE = 15;
-const BASE_RADIUS_KM = 10;
-
-const toRad = (v) => (v * Math.PI) / 180;
-const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
-const makePopupHtml = (point) => {
-  const imgHtml = point.image
-    ? `<img src="${point.image}" style="width:120px;border-radius:6px;margin:6px 0;"/>`
-    : "";
-  const desc = point.description
-    ? `<div style="font-size:12px;margin-top:4px;">${point.description}</div>`
-    : "";
-  return `
-    <div style="text-align:center;max-width:240px;">
-      <h4 style="margin:0 0 6px 0;">${point.name}</h4>
-      ${imgHtml}
-      ${desc}
-    </div>
-  `;
-};
-
-// simple debounce hook-like utility using ref
-const useDebouncedCallback = (fn, wait = 200) => {
-  const timer = useRef(null);
-  const cb = useCallback(
-    (...args) => {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => {
-        fn(...args);
-        timer.current = null;
-      }, wait);
-    },
-    [fn, wait]
-  );
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    []
-  );
-  return cb;
+const createCustomIcon = (isSelected = false) => {
+  const size = isSelected ? 35 : 28;
+  return L.divIcon({
+    className: "custom-marker-wrapper",
+    html: `
+      <div class="marker-main ${isSelected ? "active" : ""}" 
+           style="width: ${size}px; height: ${size}px;">
+        <div class="marker-inner"></div>
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+  });
 };
 
 const MapComponent = () => {
-  const mapRef = useRef(null);
-  const clusterRef = useRef(null);
-  const markersById = useRef(new Map());
-  const userCircleRef = useRef(null);
-  const [userLocation, setUserLocation] = useState(null);
-  const [selectedPoint, setSelectedPoint] = useState(null);
-  const [attachMode, setAttachMode] = useState(false);
-  const [dataToAttach, setDataToAttach] = useState(null);
-  const [isMobile, setIsMobile] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [showPopupAd, setShowPopupAd] = useState(false);
-  const [nearbyPoints, setNearbyPoints] = useState([]);
-
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const isSelectMode = queryParams.get("mode") === "select";
 
-  // screen size listener
-  useEffect(() => {
-    const check = () => {
-      const mobile = typeof window !== "undefined" && window.innerWidth <= 420;
-      setIsMobile(mobile);
-      // only show sidebar by default on desktop
-      setShowSidebar(!mobile);
-    };
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  const mapRef = useRef(null);
+  const markersRef = useRef(null);
+  const activeMarkerLayerRef = useRef(L.layerGroup());
 
-  // request location with fallback
-  const requestUserLocation = useCallback((opts = {}) => {
-    return new Promise((resolve) => {
-      if (typeof navigator === "undefined" || !navigator.geolocation) {
-        resolve({ latitude: 41.769, longitude: 44.784 });
-        return;
-      }
-      let done = false;
-      const onSuccess = (p) => {
-        if (done) return;
-        done = true;
-        resolve({
-          latitude: p.coords.latitude,
-          longitude: p.coords.longitude,
-          accuracy: p.coords.accuracy,
-        });
-      };
-      const onFail = () => {
-        if (done) return;
-        done = true;
-        resolve({ latitude: 41.769, longitude: 44.784 });
-      };
-      navigator.geolocation.getCurrentPosition(onSuccess, onFail, {
-        enableHighAccuracy: true,
-        timeout: opts.timeout || 8000,
-        maximumAge: opts.maximumAge || 0,
-      });
-      setTimeout(() => {
-        if (!done) {
-          done = true;
-          resolve({ latitude: 41.769, longitude: 44.784 });
-        }
-      }, (opts.timeout || 8000) + 500);
-    });
-  }, []);
+  const [stations, setStations] = useState([]);
+  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  const getNearbyPoints = useCallback(
-    (centerLat, centerLng) => {
-      const baseLat = userLocation ? userLocation.lat : centerLat;
-      const baseLng = userLocation ? userLocation.lng : centerLng;
-      let radius = BASE_RADIUS_KM;
-      let collected = [];
-      while (radius <= 200 && collected.length < MAX_VISIBLE) {
-        collected = pointsOfInterest
-          .map((p) => ({
-            point: p,
-            dist: haversineDistanceKm(baseLat, baseLng, p.lat, p.lng),
-          }))
-          .filter((x) => x.dist <= radius)
-          .sort((a, b) => a.dist - b.dist)
-          .slice(0, MAX_VISIBLE)
-          .map((x) => x.point);
-        if (collected.length >= Math.min(MAX_VISIBLE, 5)) break;
-        radius *= 2;
-      }
-      if (collected.length === 0) {
-        collected = pointsOfInterest
-          .map((p) => ({
-            point: p,
-            dist: haversineDistanceKm(baseLat, baseLng, p.lat, p.lng),
-          }))
-          .sort((a, b) => a.dist - b.dist)
-          .slice(0, MAX_VISIBLE)
-          .map((x) => x.point);
-      }
-      return collected;
-    },
-    [userLocation]
-  );
-
-  const addMarkerForPoint = useCallback((point) => {
-    if (!mapRef.current || !clusterRef.current) return;
-    const id = point.id ?? `${point.lat}_${point.lng}`;
-    if (markersById.current.has(id)) return;
-    const marker = L.marker([point.lat, point.lng]);
-    marker.bindPopup(makePopupHtml(point), { maxWidth: 300 });
-    marker.on("click", () => setSelectedPoint(point));
-    clusterRef.current.addLayer(marker);
-    markersById.current.set(id, marker);
-  }, []);
-
-  const updateVisibleMarkers = useCallback(() => {
-    if (!mapRef.current) return;
-    const center = mapRef.current.getCenter();
-    const nearby = getNearbyPoints(center.lat, center.lng);
-    setNearbyPoints(nearby);
-    const keep = new Set(nearby.map((p) => p.id ?? `${p.lat}_${p.lng}`));
-    nearby.forEach((p) => addMarkerForPoint(p));
-    for (const [id, marker] of Array.from(markersById.current.entries())) {
-      if (!keep.has(id)) {
-        try {
-          clusterRef.current.removeLayer(marker);
-        } catch (e) {}
-        markersById.current.delete(id);
-      }
-    }
-  }, [getNearbyPoints, addMarkerForPoint]);
-
-  // debounce updates
-  const updateVisibleMarkersDebounced = useDebouncedCallback(
-    updateVisibleMarkers,
-    250
-  );
-
-  // Init map once
   useEffect(() => {
     if (mapRef.current) return;
+    const map = L.map("map", { zoomControl: false }).setView(
+      [41.7151, 44.8271],
+      13,
+    );
 
-    mapRef.current = L.map("map", {
-      center: [41.769, 44.784],
-      zoom: 13,
-      preferCanvas: true,
-      worldCopyJump: true,
+    L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+      {
+        attribution: "© CartoDB",
+      },
+    ).addTo(map);
+
+    mapRef.current = map;
+    markersRef.current = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      maxClusterRadius: 45,
+      disableClusteringAtZoom: 17,
     });
+    map.addLayer(markersRef.current);
+    activeMarkerLayerRef.current.addTo(map);
 
-    // tile layer
-    try {
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(mapRef.current);
-    } catch (e) {
-      // graceful fallback if tiles fail
-      console.warn("Tile layer failed:", e);
-    }
-
-    clusterRef.current = L.markerClusterGroup({ chunkedLoading: true });
-    mapRef.current.addLayer(clusterRef.current);
-
-    const onMoveEnd = () => updateVisibleMarkersDebounced();
-    mapRef.current.on("moveend", onMoveEnd);
-    mapRef.current.on("zoomend", onMoveEnd);
-
-    // request location and center
-    let mounted = true;
-    requestUserLocation().then((loc) => {
-      if (!mounted) return;
-      const lat = loc.latitude;
-      const lng = loc.longitude;
-      setUserLocation({ lat, lng });
-      try {
-        mapRef.current.setView([lat, lng], 14);
-        if (userCircleRef.current) {
-          try {
-            mapRef.current.removeLayer(userCircleRef.current);
-          } catch (e) {}
-          userCircleRef.current = null;
-        }
-        userCircleRef.current = L.circle([lat, lng], {
-          radius: Math.max(loc.accuracy || 50, 20),
-        }).addTo(mapRef.current);
-      } catch (e) {
-        // ignore
-      }
-      updateVisibleMarkersDebounced();
-    });
-
-    return () => {
-      mounted = false;
-      if (!mapRef.current) return;
-      mapRef.current.off();
-      try {
-        mapRef.current.remove();
-      } catch (e) {}
-      mapRef.current = null;
-      markersById.current.clear();
-      clusterRef.current = null;
-      if (userCircleRef.current) {
-        try {
-          userCircleRef.current.remove();
-        } catch (e) {}
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetch("http://127.0.0.1:8001/api/stations")
+      .then((res) => res.json())
+      .then(setStations)
+      .catch((err) => console.error(err));
   }, []);
 
-  // Ensure leaflet recalculates sizes when layout changes
   useEffect(() => {
-    if (!mapRef.current) return;
-    const id = setTimeout(() => {
-      try {
-        mapRef.current.invalidateSize();
-      } catch (e) {}
-    }, 120);
-    return () => clearTimeout(id);
-  }, [isMobile, showSidebar, nearbyPoints]);
+    if (!markersRef.current || !stations.length) return;
+    markersRef.current.clearLayers();
+    activeMarkerLayerRef.current.clearLayers();
 
-  useEffect(() => {
-    const id = setTimeout(() => setShowPopupAd(true), 2500);
-    return () => clearTimeout(id);
-  }, []);
+    stations.forEach((s) => {
+      const isActive = selectedPoint?.id === s.id;
+      const marker = L.marker([s.lat, s.lng], {
+        icon: createCustomIcon(isActive),
+        zIndexOffset: isActive ? 10000 : 0,
+      });
 
-  const centerToUser = useCallback(async () => {
-    if (!userLocation) {
-      const loc = await requestUserLocation();
-      setUserLocation({ lat: loc.latitude, lng: loc.longitude });
-    }
-    if (mapRef.current && userLocation) {
-      try {
-        mapRef.current.setView([userLocation.lat, userLocation.lng], 14);
-      } catch (e) {}
-    }
-  }, [userLocation, requestUserLocation]);
-
-  const openPointOnMap = useCallback(
-    (point) => {
-      if (!mapRef.current) return;
-      const id = point.id ?? `${point.lat}_${point.lng}`;
-      const marker = markersById.current.get(id);
-      if (marker) {
-        try {
-          mapRef.current.setView([point.lat, point.lng], 15);
-          marker.openPopup();
-        } catch (e) {}
-      } else {
-        addMarkerForPoint(point);
-        const m = markersById.current.get(id);
-        if (m) {
-          try {
-            mapRef.current.setView([point.lat, point.lng], 15);
-            m.openPopup();
-          } catch (e) {}
+      marker.on("click", () => {
+        if (isSelectMode) {
+          navigate(
+            `/add-photo?id=${s.id}&brand=${s.brand}&name=${s.name}&lat=${s.lat}&lng=${s.lng}`,
+          );
+        } else {
+          setSelectedPoint(s);
+          setMobileSidebarOpen(false);
+          mapRef.current.flyTo([s.lat, s.lng], 16, { duration: 1.2 });
         }
-      }
-    },
-    [addMarkerForPoint]
-  );
+      });
 
-  const onAddPhoto = () => navigate("/add-station-photo");
+      if (isActive) activeMarkerLayerRef.current.addLayer(marker);
+      else markersRef.current.addLayer(marker);
+    });
+  }, [stations, selectedPoint, isSelectMode, navigate]);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
-      {attachMode && dataToAttach && (
-        <div style={{ position: "absolute", left: 14, top: 14, zIndex: 9999 }}>
-          <div className="bg-yellow-400 text-black px-4 py-2 rounded shadow">
-            <div className="text-sm font-semibold">Режим привязки</div>
-            <div className="text-xs mt-1">
-              Нажми на маркер, чтобы привязать распознанные цены к заправке.
-            </div>
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={() => {
-                  setAttachMode(false);
-                  setDataToAttach(null);
-                }}
-                className="px-2 py-1 bg-white rounded text-sm"
-              >
-                Отменить
-              </button>
-              <button
-                onClick={centerToUser}
-                className="px-2 py-1 bg-white rounded text-sm"
-              >
-                Центр на меня
-              </button>
-            </div>
-          </div>
+    <div className="w-full h-full relative overflow-hidden font-[-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto]">
+      <style>{`
+        .marker-main { 
+          background: #2563eb; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); 
+          border: 2px solid white; display: flex; align-items: center; justify-content: center;
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .marker-main.active { 
+          background: #ef4444 !important; transform: rotate(-45deg) scale(1.2);
+          box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); z-index: 9999;
+        }
+        .marker-inner { width: 30%; height: 30%; background: white; border-radius: 50%; }
+        .leaflet-marker-pane { z-index: 600 !important; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+      `}</style>
+
+      <div id="map" className="w-full h-full z-0" />
+
+      {/* Desktop Sidebar */}
+      {!isSelectMode && (
+        <div className="absolute top-0 right-0 h-full w-[400px] bg-white z-[1001] shadow-2xl hidden md:block">
+          <MapSidebar
+            stations={stations}
+            selectedPoint={selectedPoint}
+            onPointClick={(s) => {
+              setSelectedPoint(s);
+              mapRef.current.flyTo([s.lat, s.lng], 16, { duration: 1.2 });
+            }}
+          />
         </div>
       )}
 
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
-        <BannerLeft />
-
-        <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+      {/* iOS style Bottom Sheet */}
+      {!isSelectMode && (
+        <>
           <div
-            id="map"
-            className="flex-1 min-h-0 relative z-0 rounded-l-lg overflow-hidden"
+            className={`fixed inset-0 bg-black/20 backdrop-blur-[2px] z-[2000] transition-opacity duration-500 md:hidden ${mobileSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            onClick={() => setMobileSidebarOpen(false)}
           />
-
-          {isMobile && (
-            <div className="w-full h-44 md:hidden bg-white border-t border-gray-200 flex flex-col overflow-hidden">
-              <div className="px-4 py-2 border-b flex items-center justify-between">
-                <div className="font-semibold text-sm">Ближайшие заправки</div>
-                <button
-                  className="text-xs px-2 py-1 bg-white rounded"
-                  onClick={() => setShowSidebar((s) => !s)}
-                >
-                  {showSidebar ? "▼" : "▲"}
-                </button>
+          <div
+            className={`fixed bottom-0 left-0 right-0 z-[2001] md:hidden transition-transform duration-[600ms] style={{ transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)' }} ${mobileSidebarOpen ? "translate-y-0" : "translate-y-full"}`}
+          >
+            <div className="bg-white/90 backdrop-blur-2xl h-[75vh] rounded-t-[2.5rem] shadow-2xl flex flex-col">
+              <div
+                className="w-full py-4 flex justify-center cursor-pointer"
+                onClick={() => setMobileSidebarOpen(false)}
+              >
+                <div className="w-12 h-1.5 bg-gray-300/60 rounded-full" />
               </div>
-              {showSidebar && (
-                <div className="flex-1 overflow-y-auto">
-                  <MapSidebar
-                    isMobile
-                    setShowSidebar={setShowSidebar}
-                    points={nearbyPoints}
-                    onPointClick={(p) => {
-                      setSelectedPoint(p);
-                      openPointOnMap(p);
-                      setShowSidebar(false);
-                    }}
-                    selectedPoint={selectedPoint}
-                    userLocation={userLocation}
-                  />
-                </div>
-              )}
+              <div className="flex-1 overflow-y-auto pb-10">
+                <MapSidebar
+                  stations={stations}
+                  selectedPoint={selectedPoint}
+                  onPointClick={(s) => {
+                    setSelectedPoint(s);
+                    setMobileSidebarOpen(false);
+                    mapRef.current.flyTo([s.lat, s.lng], 16);
+                  }}
+                />
+              </div>
             </div>
-          )}
+          </div>
+        </>
+      )}
 
-          {!isMobile && showSidebar && (
-            <div className="hidden md:flex w-full md:w-80 bg-white border-l border-gray-200">
-              <MapSidebar
-                isMobile={false}
-                setShowSidebar={setShowSidebar}
-                points={nearbyPoints}
-                onPointClick={(p) => {
-                  setSelectedPoint(p);
-                  openPointOnMap(p);
-                }}
-                selectedPoint={selectedPoint}
-                userLocation={userLocation}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div
-        style={{ height: 76 }}
-        className="hidden md:flex w-full items-center justify-center"
-      >
-        <BannerBottom />
-      </div>
-
-      <PopupAd open={showPopupAd} onClose={() => setShowPopupAd(false)} />
+      {/* iOS Floating Button */}
+      {!isSelectMode && !mobileSidebarOpen && (
+        <button
+          onClick={() => setMobileSidebarOpen(true)}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[1005] md:hidden bg-blue-600 text-white px-8 py-4 rounded-full shadow-xl flex items-center gap-3 active:scale-95 transition-all"
+        >
+          <span className="text-lg">📍</span>
+          <span className="font-bold tracking-tight">
+            Станции ({stations.length})
+          </span>
+        </button>
+      )}
     </div>
   );
 };
-
 export default MapComponent;

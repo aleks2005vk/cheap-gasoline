@@ -1,5 +1,5 @@
-from sqlmodel import SQLModel, Field, Relationship
-from typing import List, Optional
+from sqlmodel import SQLModel, Field
+from typing import Optional
 from datetime import datetime
 
 class PriceUpdate(SQLModel, table=True):
@@ -11,7 +11,6 @@ class PriceUpdate(SQLModel, table=True):
     note: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-
 class Station(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: Optional[str] = None
@@ -20,7 +19,8 @@ class Station(SQLModel, table=True):
     lng: float
     osm_id: Optional[int] = None
     address: Optional[str] = None
-
+    # Сюда мы запишем JSON со списком доступного топлива
+    fuel_config: Optional[str] = Field(default=None)
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
