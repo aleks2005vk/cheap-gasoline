@@ -13,10 +13,13 @@ os.makedirs("data", exist_ok=True)
 from main import (
     Station, StationsBase, stations_engine, StationsSessionLocal,
     PriceUpdate, PricesBase, prices_engine, PricesSessionLocal,
-    SiteInfo, SiteInfoBase, siteinfo_engine, SiteInfoSessionLocal
+    SiteInfo, SiteInfoBase, siteinfo_engine, SiteInfoSessionLocal,
+    User, UsersBase, users_engine, UsersSessionLocal
 )
+import auth_utils
 
 # Создаем таблицы
+UsersBase.metadata.create_all(bind=users_engine)
 StationsBase.metadata.create_all(bind=stations_engine)
 PricesBase.metadata.create_all(bind=prices_engine)
 SiteInfoBase.metadata.create_all(bind=siteinfo_engine)
@@ -201,10 +204,51 @@ def init_site_info():
     finally:
         db.close()
 
+# === ИНИЦИАЛИЗАЦИЯ СУПЕРАДМИНА ===
+def init_superadmin():
+    db = UsersSessionLocal()
+    
+    # Проверяем, есть ли уже суперадмины
+    superadmin = db.query(User).filter(User.role == "superadmin").first()
+    if superadmin:
+        print(f"✓ Суперадмин уже существует: {superadmin.email}")
+        db.close()
+        return
+    
+    # Создаём суперадмина по умолчанию
+    default_admin = {
+        "email": "admin@gasoline.ge",
+        "password": "Admin123456",  # ⚠️ ИЗМЕНИТЕ ПАРОЛЬ!
+        "name": "Super Admin"
+    }
+    
+    try:
+        hashed = auth_utils.get_password_hash(default_admin["password"])
+        superadmin_user = User(
+            email=default_admin["email"],
+            name=default_admin["name"],
+            hashed_password=hashed,
+            role="superadmin",
+            is_admin=True,
+            created_at=datetime.datetime.utcnow(),
+            updated_at=datetime.datetime.utcnow()
+        )
+        db.add(superadmin_user)
+        db.commit()
+        print(f"✓ Создан суперадмин: {default_admin['email']}")
+        print(f"⚠️  Пароль по умолчанию: {default_admin['password']}")
+        print(f"⚠️  РЕКОМЕНДУЕТСЯ ИЗМЕНИТЬ ПАРОЛЬ ПОСЛЕ ПЕРВОГО ВХОДА!")
+    except Exception as e:
+        db.rollback()
+        print(f"✗ Ошибка при создании суперадмина: {e}")
+    finally:
+        db.close()
+
 if __name__ == "__main__":
     print("=" * 50)
     print("Инициализация базы данных...")
     print("=" * 50)
+    init_superadmin()
     init_stations()
     init_prices()
     init_site_info()

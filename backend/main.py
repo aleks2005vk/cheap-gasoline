@@ -34,6 +34,7 @@ class User(UsersBase):
     name = Column(String, nullable=True)
     hashed_password = Column(String)
     is_admin = Column(Boolean, default=False)
+    role = Column(String, default="user")  # user, moderator, admin, superadmin
     avatar_url = Column(String, nullable=True)
     bio = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
@@ -88,6 +89,16 @@ class SiteInfo(SiteInfoBase):
     value = Column(String)
     description = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+class AuditLog(SiteInfoBase):
+    __tablename__ = "audit_log"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    action = Column(String)  # login, logout, user_created, role_changed, delete_user, etc.
+    target_user_id = Column(Integer, nullable=True)
+    details = Column(String, nullable=True)  # JSON details
+    ip_address = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
 SiteInfoBase.metadata.create_all(bind=siteinfo_engine)
 
@@ -230,6 +241,13 @@ async def auth_register(user_data: Dict[str, str], db: Session = Depends(get_use
     db.commit()
     db.refresh(new_user)
     
+    # Log action
+    log_action(
+        action="user_created",
+        user_id=new_user.id,
+        details=f"User registered: {email}"
+    )
+    
     token = auth_utils.create_access_token({"sub": str(new_user.id), "email": new_user.email})
     return {
         "user": {"id": new_user.id, "email": new_user.email, "name": new_user.name, "is_admin": new_user.is_admin}, 
@@ -369,6 +387,163 @@ def get_upload(filename: str):
     if not os.path.exists(fpath):
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(fpath)
+
+# --- HELPER: LOG ACTION ---
+def log_action(action: str, user_id: int = None, target_user_id: int = None, details: str = None, ip: str = None):
+    """Логировать действие в AuditLog"""
+    try:
+        db = SiteInfoSessionLocal()
+        log_entry = AuditLog(
+            user_id=user_id,
+            action=action,
+            target_user_id=target_user_id,
+            details=details,
+            ip_address=ip
+        )
+        db.add(log_entry)
+        db.commit()
+        db.close()
+    except Exception as e:
+        print(f"Log error: {e}")
+
+# --- ADMIN ENDPOINTS ---
+@app.get("/api/admin/users")
+def admin_get_users(current_user: User = Depends(get_current_user)):
+    """Получить всех пользователей (только для админов)"""
+    if current_user.role not in ["admin", "superadmin"] and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    db = UsersSessionLocal()
+    try:
+        users = db.query(User).all()
+        return [{
+            "id": u.id,
+            "email": u.email,
+            "name": u.name,
+            "role": u.role,
+            "is_admin": u.is_admin,
+            "avatar_url": u.avatar_url,
+            "bio": u.bio,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+            "updated_at": u.updated_at.isoformat() if u.updated_at else None
+        } for u in users]
+    finally:
+        db.close()
+
+@app.put("/api/admin/user/{user_id}/role")
+def admin_update_user_role(user_id: int, role_data: Dict[str, str], current_user: User = Depends(get_current_user)):
+    """Изменить роль пользователя"""
+    if current_user.role not in ["admin", "superadmin"] and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if current_user.id == user_id and role_data.get("role") != current_user.role:
+        raise HTTPException(status_code=400, detail="Cannot change own role")
+    
+    db = UsersSessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        old_role = user.role
+        new_role = role_data.get("role", "user")
+        
+        if new_role not in ["user", "moderator", "admin", "superadmin"]:
+            raise HTTPException(status_code=400, detail="Invalid role")
+        
+        user.role = new_role
+        user.is_admin = (new_role in ["admin", "superadmin"])
+        db.commit()
+        
+        # Log action
+        log_action(
+            action="role_changed",
+            user_id=current_user.id,
+            target_user_id=user_id,
+            details=f"Role changed from {old_role} to {new_role}"
+        )
+        
+        return {"success": True, "message": f"Role changed to {new_role}"}
+    finally:
+        db.close()
+
+@app.delete("/api/admin/user/{user_id}")
+def admin_delete_user(user_id: int, current_user: User = Depends(get_current_user)):
+    """Удалить пользователя"""
+    if current_user.role not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if current_user.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    db = UsersSessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        email = user.email
+        db.delete(user)
+        db.commit()
+        
+        # Log action
+        log_action(
+            action="user_deleted",
+            user_id=current_user.id,
+            target_user_id=user_id,
+            details=f"Deleted user: {email}"
+        )
+        
+        return {"success": True, "message": f"User {email} deleted"}
+    finally:
+        db.close()
+
+@app.get("/api/admin/logs")
+def admin_get_logs(current_user: User = Depends(get_current_user), limit: int = 100):
+    """Получить логи аудита"""
+    if current_user.role not in ["admin", "superadmin"] and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    db = SiteInfoSessionLocal()
+    try:
+        logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).all()
+        return [{
+            "id": log.id,
+            "user_id": log.user_id,
+            "action": log.action,
+            "target_user_id": log.target_user_id,
+            "details": log.details,
+            "ip_address": log.ip_address,
+            "created_at": log.created_at.isoformat() if log.created_at else None
+        } for log in logs]
+    finally:
+        db.close()
+
+@app.post("/api/admin/user/{user_id}/ban")
+def admin_ban_user(user_id: int, ban_data: Dict[str, str], current_user: User = Depends(get_current_user)):
+    """Заблокировать пользователя"""
+    if current_user.role not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    db = UsersSessionLocal()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user.role = "banned"
+        db.commit()
+        
+        log_action(
+            action="user_banned",
+            user_id=current_user.id,
+            target_user_id=user_id,
+            details=ban_data.get("reason", "No reason provided")
+        )
+        
+        return {"success": True, "message": f"User {user.email} banned"}
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     import uvicorn
