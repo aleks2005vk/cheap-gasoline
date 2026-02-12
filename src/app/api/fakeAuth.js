@@ -13,7 +13,7 @@ export async function register({ email, name, password }) {
   }
 
   const data = await res.json();
-  return { user: data.user, accessToken: data.token };
+  return { user: data.user, token: data.token };
 }
 
 export async function login({ email, password }) {
@@ -29,5 +29,5 @@ export async function login({ email, password }) {
   }
 
   const data = await res.json();
-  return { user: data.user, accessToken: data.token };
+  return { user: data.user, token: data.token };
 }

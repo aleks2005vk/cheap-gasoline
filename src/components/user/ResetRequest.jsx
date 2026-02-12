@@ -28,59 +28,69 @@ const ResetRequest = () => {
         setSuccess(true);
         setTimeout(() => navigate("/login"), 2500);
       } else {
-        alert("Email не найден в базе!");
+        alert("Email не найден!");
       }
     } catch (err) {
-      alert("Ошибка соединения с сервером");
+      alert("Ошибка сети");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans">
-      <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-10">
-        <h2 className="text-center font-black text-3xl uppercase italic tracking-tighter mb-8 text-blue-600">
-          Сброс пароля
-        </h2>
+    <div className="relative min-h-screen flex items-center justify-center p-4 bg-[#0a0a0a] overflow-hidden">
+      <div className="absolute top-1/3 left-1/3 w-96 h-96 bg-blue-600 rounded-full mix-blend-screen filter blur-[150px] opacity-30 animate-pulse"></div>
+
+      <div className="relative w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-10 shadow-2xl animate-in fade-in zoom-in duration-500">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-black text-white uppercase italic tracking-tighter">
+            Reset Password
+          </h2>
+          <p className="text-white/40 text-[10px] uppercase tracking-widest mt-2">
+            Security Check
+          </p>
+        </div>
 
         {success ? (
-          <div className="text-center bg-green-50 p-8 rounded-3xl animate-pulse">
-            <p className="text-green-600 font-black uppercase text-sm">
-              Пароль успешно изменен!
+          <div className="text-center bg-green-500/10 border border-green-500/20 p-8 rounded-3xl animate-pulse">
+            <p className="text-green-400 font-black uppercase text-sm tracking-widest">
+              Success!
             </p>
-            <p className="text-gray-400 text-[10px] mt-2 font-bold uppercase">
-              Сейчас вы будете перенаправлены...
+            <p className="text-white/40 text-[10px] mt-2 font-bold uppercase">
+              Redirecting to login...
             </p>
           </div>
         ) : (
           <form onSubmit={handleReset} className="flex flex-col gap-6">
-            <div className={step === 2 ? "opacity-30 pointer-events-none" : ""}>
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-2 mb-1 block">
-                Введите вашу почту
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-6 py-4 bg-gray-50 border-none rounded-2xl font-bold"
-                placeholder="example@mail.com"
-              />
+            <div
+              className={`transition-all duration-300 ${step === 2 ? "opacity-30 pointer-events-none blur-sm" : ""}`}
+            >
+              <div className="relative group">
+                <input
+                  type="email"
+                  name="email" // Важно
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="Enter your email"
+                  className="w-full px-6 py-4 bg-black/30 border border-white/10 focus:border-blue-500 rounded-2xl text-white outline-none font-bold placeholder-white/20 transition-all"
+                />
+              </div>
             </div>
 
             {step === 2 && (
-              <div className="animate-in fade-in slide-in-from-top-4">
-                <label className="text-[10px] font-black uppercase text-blue-600 ml-2 mb-1 block">
-                  Придумайте новый пароль
-                </label>
+              <div className="animate-in fade-in slide-in-from-top-4 relative group">
                 <input
                   type="password"
+                  name="new-password" // Важно
+                  autoComplete="new-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   autoFocus
-                  className="w-full px-6 py-4 bg-blue-50 border-2 border-blue-200 rounded-2xl font-bold"
+                  placeholder="New Password"
+                  className="w-full px-6 py-4 bg-black/30 border-2 border-blue-500/50 rounded-2xl text-white outline-none font-bold placeholder-white/20 shadow-[0_0_20px_rgba(59,130,246,0.2)]"
                 />
               </div>
             )}
@@ -88,20 +98,21 @@ const ResetRequest = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all active:scale-95"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-900/40 hover:shadow-blue-600/40 hover:scale-[1.02] active:scale-95 transition-all"
             >
               {loading
-                ? "Обработка..."
+                ? "Processing..."
                 : step === 1
-                  ? "Продолжить"
-                  : "Обновить пароль"}
+                  ? "Continue"
+                  : "Update Password"}
             </button>
+
             <button
               type="button"
               onClick={() => navigate("/login")}
-              className="text-[10px] font-black text-gray-400 uppercase hover:text-gray-600"
+              className="text-[10px] font-black text-white/30 hover:text-white uppercase tracking-widest transition-colors"
             >
-              Назад ко входу
+              Cancel & Return
             </button>
           </form>
         )}

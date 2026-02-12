@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const BRAND_PRESETS = {
@@ -25,12 +25,14 @@ const BRAND_PRESETS = {
     { id: "eko_premium", label: "EKO PREMIUM" },
     { id: "eko_regular", label: "EKO REGULAR" },
     { id: "diesel", label: "EKO DIESEL" },
+    { id: "EUdiesel", label: "EURO DIESEL" },
   ],
   Rompetrol: [
     { id: "efix_98", label: "98 EFIX" },
     { id: "efix_95", label: "95 EFIX" },
     { id: "efix_92", label: "92 EFIX" },
     { id: "diesel", label: "D EFIX" },
+    { id: "LPDdiesel", label: "LPD EFIX" },
   ],
 };
 
@@ -38,9 +40,9 @@ const AddStationPhoto = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
+  const stationId = queryParams.get("id");
 
-  // Состояния
-  const [step, setStep] = useState(queryParams.get("id") ? 1 : 0);
+  const [step, setStep] = useState(1);
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedBrand, setSelectedBrand] = useState(
     queryParams.get("brand") || "",
@@ -48,109 +50,97 @@ const AddStationPhoto = () => {
   const [prices, setPrices] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Следим за возвратом с карты
-  useEffect(() => {
-    const id = queryParams.get("id");
-    if (id) {
-      setSelectedBrand(queryParams.get("brand") || "");
-      setStep(1);
-    }
-  }, [location.search]);
-
   const handleAIParse = () => {
+    if (!selectedBrand) {
+      alert("Сначала выберите бренд в списке ниже!");
+      return;
+    }
     setLoading(true);
     setTimeout(() => {
-      const brand = selectedBrand || "Socar";
-      const presets = {
-        Socar: { n95: "2.99", n92: "2.79", diesel: "2.89", lpg: "1.75" },
-        Lukoil: {
-          ecto_100: "3.45",
-          ecto_95: "3.15",
-          ecto_92: "2.95",
-          diesel: "3.20",
-        },
-      };
-      setPrices(presets[brand] || presets.Socar);
+      const detectedRaw = ["3.12", "2.95", "3.02", "2.85", "1.70"];
+      const brandFields = BRAND_PRESETS[selectedBrand] || [];
+      const updatedPrices = {};
+      brandFields.forEach((field, index) => {
+        if (detectedRaw[index]) {
+          updatedPrices[field.id] = detectedRaw[index];
+        }
+      });
+      setPrices(updatedPrices);
       setLoading(false);
       setStep(3);
     }, 1500);
   };
 
+  const handlePriceChange = (id, value) => {
+    let val = value.replace(/[^\d.]/g, "");
+    if (val.length === 3 && !val.includes(".")) {
+      val = (parseInt(val) / 100).toFixed(2);
+    }
+    setPrices({ ...prices, [id]: val });
+  };
+
   const handleSubmit = async () => {
-    const stationId = queryParams.get("id");
     if (!stationId) {
-      alert("❌ Ошибка: Станция не выбрана!");
-      setStep(0);
+      alert("Ошибка: Станция не выбрана. Вернитесь на карту.");
       return;
     }
-
     setLoading(true);
-    const payload = {
-      station_id: parseInt(stationId, 10),
-      brand: selectedBrand,
-      station_name: queryParams.get("name") || "Unknown",
-      lat: parseFloat(queryParams.get("lat")) || 0,
-      lng: parseFloat(queryParams.get("lng")) || 0,
-      prices: prices,
-    };
-
     try {
       const res = await fetch("http://127.0.0.1:8001/api/update-price-manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          station_id: parseInt(stationId),
+          prices: prices,
+        }),
       });
-
       if (res.ok) {
-        alert("✅ Цены успешно обновлены!");
-        window.dispatchEvent(new Event("stations-updated"));
+        alert("Цены успешно обновлены!");
         navigate("/");
-      } else {
-        const errorText = await res.text();
-        alert(
-          `❌ Ошибка сервера: ${res.status}. Проверьте эндпоинт на бэкенде.`,
-        );
       }
-    } catch (error) {
-      alert("❌ Ошибка сети: проверьте, запущен ли бэкенд.");
+    } catch (e) {
+      alert("Ошибка сохранения");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 pb-20 font-sans">
-      <div className="max-w-md mx-auto space-y-6">
-        {/* ШАГ 0: Выбор станции */}
-        {step === 0 && (
-          <div className="bg-white p-8 rounded-[2rem] shadow-xl border-2 border-blue-500 text-center">
-            <div className="text-5xl mb-4">📍</div>
-            <h2 className="text-2xl font-black mb-6 uppercase">
-              Выберите станцию
-            </h2>
-            <button
-              onClick={() => navigate("/?mode=select")}
-              className="w-full py-6 bg-blue-600 text-white rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all"
-            >
-              ОТКРЫТЬ КАРТУ
-            </button>
-            <p className="mt-4 text-gray-400 text-sm uppercase font-bold">
-              Укажите точку на карте
-            </p>
-          </div>
-        )}
+    <div className="min-h-screen bg-gray-900 flex flex-col items-center p-4 font-sans text-slate-900">
+      {/* ИНДИКАТОР ВЫБРАННОЙ СТАНЦИИ */}
+      <div className="w-full max-w-md bg-white/10 backdrop-blur-md p-3 rounded-2xl mb-4 border border-white/10 flex justify-between items-center">
+        <div className="flex items-center gap-3">
+          <div
+            className={`w-3 h-3 rounded-full ${stationId ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
+          ></div>
+          <span className="text-white font-bold text-sm">
+            {stationId ? `СТАНЦИЯ #${stationId}` : "СТАНЦИЯ НЕ ВЫБРАНА"}
+          </span>
+        </div>
+        <button
+          onClick={() => navigate("/")}
+          className="text-[10px] bg-white/20 text-white px-3 py-1 rounded-lg font-black uppercase tracking-tighter hover:bg-white/30 transition-colors"
+        >
+          Карта 🗺️
+        </button>
+      </div>
 
-        {/* ШАГ 1: Фото */}
+      <div className="w-full max-w-md">
+        {/* Шаг 1: Загрузка */}
         {step === 1 && (
-          <div className="bg-white p-8 rounded-[2rem] shadow-xl border-dashed border-4 border-blue-100 text-center">
-            <div className="mb-4">
-              <span className="bg-blue-100 text-blue-700 px-4 py-1 rounded-full text-xs font-bold">
-                АЗС: {queryParams.get("brand")}
-              </span>
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl text-center border border-white/20">
+            <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="text-3xl">⛽</span>
             </div>
-            <h2 className="text-2xl font-black text-gray-800 uppercase mb-4">
-              Шаг 1: Фото Табло
+            <h2 className="text-2xl font-black mb-2 uppercase tracking-tight">
+              Обновить цены
             </h2>
+            <p className="text-gray-400 text-sm mb-8">
+              {stationId
+                ? "Загрузите фото табло для этой заправки"
+                : "Сначала выберите заправку на карте, затем загрузите фото"}
+            </p>
+
             <input
               type="file"
               accept="image/*"
@@ -165,59 +155,26 @@ const AddStationPhoto = () => {
             />
             <label
               htmlFor="upload"
-              className="cursor-pointer bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold block hover:bg-blue-700 transition-all shadow-lg"
+              className="bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-2xl block font-bold shadow-lg cursor-pointer transition-all active:scale-95"
             >
-              📸 Сфотографировать
+              📸 СДЕЛАТЬ ФОТО
             </label>
-            <button
-              onClick={() => setStep(3)}
-              className="mt-4 text-blue-500 font-bold block w-full text-center"
-            >
-              Пропустить и ввести вручную
-            </button>
           </div>
         )}
 
-        {/* ШАГ 2: Анализ */}
+        {/* Шаг 2: Бренд и ИИ */}
         {step === 2 && (
-          <div className="bg-white p-6 rounded-[2rem] shadow-xl text-center">
-            <img
-              src={selectedImage}
-              alt="Preview"
-              className="w-full h-48 object-cover rounded-2xl mb-4 shadow-md"
-            />
-            <h2 className="text-xl font-black mb-4">Распознать через ИИ?</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={handleAIParse}
-                disabled={loading}
-                className="bg-green-600 text-white p-4 rounded-xl font-bold shadow-md"
-              >
-                {loading ? "Анализ..." : "🤖 ДА"}
-              </button>
-              <button
-                onClick={() => setStep(3)}
-                className="bg-gray-200 text-gray-600 p-4 rounded-xl font-bold"
-              >
-                ВРУЧНУЮ
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ШАГ 3: Цены */}
-        {step === 3 && (
-          <div className="space-y-4 animate-in fade-in">
-            <div className="bg-white p-6 rounded-3xl shadow-lg border-2 border-blue-500">
-              <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">
-                Выбранный Бренд
-              </label>
+          <div className="space-y-4 animate-in fade-in duration-300">
+            <div className="bg-white p-5 rounded-3xl shadow-md border-2 border-blue-500">
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">
+                Проверьте бренд сети
+              </p>
               <select
-                className="w-full p-2 bg-gray-50 rounded-xl font-bold outline-none"
+                className="w-full text-lg font-black outline-none bg-transparent cursor-pointer"
                 value={selectedBrand}
                 onChange={(e) => setSelectedBrand(e.target.value)}
               >
-                <option value="">-- Выбор --</option>
+                <option value="">-- ВЫБРАТЬ СЕТЬ --</option>
                 {Object.keys(BRAND_PRESETS).map((b) => (
                   <option key={b} value={b}>
                     {b}
@@ -226,42 +183,75 @@ const AddStationPhoto = () => {
               </select>
             </div>
 
+            <div className="bg-white p-4 rounded-[2rem] shadow-xl">
+              <img
+                src={selectedImage}
+                className="w-full h-56 object-cover rounded-2xl mb-4 shadow-inner"
+                alt="preview"
+              />
+              <button
+                onClick={handleAIParse}
+                disabled={loading}
+                className="w-full py-5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 disabled:bg-gray-300"
+              >
+                {loading ? "⌛ ОБРАБОТКА..." : "🤖 ЗАПУСТИТЬ ИИ-СКАНЕР"}
+              </button>
+              <button
+                onClick={() => setStep(3)}
+                className="w-full mt-4 text-gray-400 font-bold text-sm uppercase tracking-widest"
+              >
+                Ввести вручную →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Шаг 3: Сохранение */}
+        {step === 3 && (
+          <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center border-l-4 border-blue-500">
+              <span className="font-black uppercase text-gray-400 text-[10px]">
+                Текущая сеть:
+              </span>
+              <span className="font-black uppercase text-blue-600">
+                {selectedBrand || "Не выбрана"}
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
-              {(BRAND_PRESETS[selectedBrand] || []).map((field) => (
+              {(BRAND_PRESETS[selectedBrand] || []).map((f) => (
                 <div
-                  key={field.id}
-                  className="bg-white p-4 rounded-2xl border-2 border-gray-100"
+                  key={f.id}
+                  className="bg-white p-4 rounded-2xl border-2 border-gray-100 shadow-sm focus-within:border-blue-500 transition-colors"
                 >
-                  <span className="text-[10px] font-black text-blue-500 uppercase">
-                    {field.label}
+                  <span className="text-[10px] font-black text-blue-400 uppercase block mb-1">
+                    {f.label}
                   </span>
                   <input
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    className="w-full text-2xl font-black outline-none bg-transparent"
+                    value={prices[f.id] || ""}
                     placeholder="0.00"
-                    className="w-full text-2xl font-black outline-none"
-                    value={prices[field.id] || ""}
-                    onChange={(e) =>
-                      setPrices({ ...prices, [field.id]: e.target.value })
-                    }
+                    onChange={(e) => handlePriceChange(f.id, e.target.value)}
                   />
                 </div>
               ))}
             </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStep(0)}
-                className="w-1/4 py-5 bg-gray-200 rounded-2xl font-black"
-              >
-                ←
-              </button>
+            <div className="pt-4">
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-3/4 py-5 bg-green-600 text-white rounded-2xl font-black text-xl shadow-lg"
+                className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all disabled:bg-gray-400"
               >
-                {loading ? "Сохранение..." : "ПРИМЕНИТЬ"}
+                {loading ? "СОХРАНЕНИЕ..." : "ОТПРАВИТЬ ДАННЫЕ"}
+              </button>
+              <button
+                onClick={() => setStep(1)}
+                className="w-full mt-4 text-gray-400 font-bold uppercase text-xs tracking-widest"
+              >
+                ← Начать заново
               </button>
             </div>
           </div>

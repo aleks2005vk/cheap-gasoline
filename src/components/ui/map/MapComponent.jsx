@@ -7,6 +7,7 @@ import "leaflet.markercluster";
 import MapSidebar from "./MapSidebar";
 import { useNavigate, useLocation } from "react-router-dom";
 
+// Кастомный маркер
 const createCustomIcon = (isSelected = false) => {
   const size = isSelected ? 35 : 28;
   return L.divIcon({
@@ -25,154 +26,104 @@ const createCustomIcon = (isSelected = false) => {
 const MapComponent = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const isSelectMode = queryParams.get("mode") === "select";
-
   const mapRef = useRef(null);
   const markersRef = useRef(null);
-  const activeMarkerLayerRef = useRef(L.layerGroup());
-
   const [stations, setStations] = useState([]);
   const [selectedPoint, setSelectedPoint] = useState(null);
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
+  // Инициализация карты
   useEffect(() => {
     if (mapRef.current) return;
-    const map = L.map("map", { zoomControl: false }).setView(
-      [41.7151, 44.8271],
-      13,
+
+    const map = L.map("map", {
+      zoomControl: false,
+      attributionControl: false,
+    }).setView([41.7151, 44.8271], 13);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(
+      map,
     );
 
-    L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      {
-        attribution: "© CartoDB",
-      },
-    ).addTo(map);
-
-    mapRef.current = map;
     markersRef.current = L.markerClusterGroup({
       showCoverageOnHover: false,
-      maxClusterRadius: 45,
-      disableClusteringAtZoom: 17,
+      maxClusterRadius: 50,
     });
     map.addLayer(markersRef.current);
-    activeMarkerLayerRef.current.addTo(map);
+    mapRef.current = map;
 
+    // Решаем проблему "серой карты"
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 500);
+
+    // Загрузка данных
     fetch("http://127.0.0.1:8001/api/stations")
       .then((res) => res.json())
       .then(setStations)
-      .catch((err) => console.error(err));
+      .catch((err) => console.error("Ошибка загрузки АЗС:", err));
   }, []);
 
+  // Отрисовка маркеров
   useEffect(() => {
     if (!markersRef.current || !stations.length) return;
     markersRef.current.clearLayers();
-    activeMarkerLayerRef.current.clearLayers();
 
     stations.forEach((s) => {
-      const isActive = selectedPoint?.id === s.id;
       const marker = L.marker([s.lat, s.lng], {
-        icon: createCustomIcon(isActive),
-        zIndexOffset: isActive ? 10000 : 0,
+        icon: createCustomIcon(selectedPoint?.id === s.id),
       });
 
       marker.on("click", () => {
-        if (isSelectMode) {
-          navigate(
-            `/add-photo?id=${s.id}&brand=${s.brand}&name=${s.name}&lat=${s.lat}&lng=${s.lng}`,
-          );
-        } else {
-          setSelectedPoint(s);
-          setMobileSidebarOpen(false);
-          mapRef.current.flyTo([s.lat, s.lng], 16, { duration: 1.2 });
-        }
+        setSelectedPoint(s);
+        mapRef.current.flyTo([s.lat, s.lng], 16, { duration: 1 });
       });
 
-      if (isActive) activeMarkerLayerRef.current.addLayer(marker);
-      else markersRef.current.addLayer(marker);
+      markersRef.current.addLayer(marker);
     });
-  }, [stations, selectedPoint, isSelectMode, navigate]);
+  }, [stations, selectedPoint]);
 
   return (
-    <div className="w-full h-full relative overflow-hidden font-[-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto]">
+    <div className="relative w-full h-full bg-neutral-900">
       <style>{`
-        .marker-main { 
-          background: #2563eb; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); 
-          border: 2px solid white; display: flex; align-items: center; justify-content: center;
-          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        .marker-main.active { 
-          background: #ef4444 !important; transform: rotate(-45deg) scale(1.2);
-          box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); z-index: 9999;
-        }
-        .marker-inner { width: 30%; height: 30%; background: white; border-radius: 50%; }
-        .leaflet-marker-pane { z-index: 600 !important; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .marker-main { background: #2563eb; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 2px solid white; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+        .marker-main.active { background: #ef4444 !important; scale: 1.2; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+        .marker-inner { width: 35%; height: 35%; background: white; border-radius: 50%; }
+        .leaflet-container { background: #171717 !important; }
       `}</style>
 
+      {/* Карта на весь экран */}
       <div id="map" className="w-full h-full z-0" />
 
-      {/* Desktop Sidebar */}
-      {!isSelectMode && (
-        <div className="absolute top-0 right-0 h-full w-[400px] bg-white z-[1001] shadow-2xl hidden md:block">
-          <MapSidebar
-            stations={stations}
-            selectedPoint={selectedPoint}
-            onPointClick={(s) => {
-              setSelectedPoint(s);
-              mapRef.current.flyTo([s.lat, s.lng], 16, { duration: 1.2 });
-            }}
-          />
-        </div>
-      )}
-
-      {/* iOS style Bottom Sheet */}
-      {!isSelectMode && (
-        <>
-          <div
-            className={`fixed inset-0 bg-black/20 backdrop-blur-[2px] z-[2000] transition-opacity duration-500 md:hidden ${mobileSidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-            onClick={() => setMobileSidebarOpen(false)}
-          />
-          <div
-            className={`fixed bottom-0 left-0 right-0 z-[2001] md:hidden transition-transform duration-[600ms] style={{ transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)' }} ${mobileSidebarOpen ? "translate-y-0" : "translate-y-full"}`}
-          >
-            <div className="bg-white/90 backdrop-blur-2xl h-[75vh] rounded-t-[2.5rem] shadow-2xl flex flex-col">
-              <div
-                className="w-full py-4 flex justify-center cursor-pointer"
-                onClick={() => setMobileSidebarOpen(false)}
-              >
-                <div className="w-12 h-1.5 bg-gray-300/60 rounded-full" />
-              </div>
-              <div className="flex-1 overflow-y-auto pb-10">
-                <MapSidebar
-                  stations={stations}
-                  selectedPoint={selectedPoint}
-                  onPointClick={(s) => {
-                    setSelectedPoint(s);
-                    setMobileSidebarOpen(false);
-                    mapRef.current.flyTo([s.lat, s.lng], 16);
-                  }}
-                />
-              </div>
+      {/* Контентный слой (выровнен по max-w-7xl как навбар) */}
+      <div className="absolute inset-0 z-[1001] pointer-events-none">
+        <div className="mx-auto max-w-7xl h-full relative px-6">
+          {/* Сайдбар всегда справа, если есть данные */}
+          <div className="absolute top-6 right-6 bottom-10 w-96 pointer-events-auto hidden md:block animate-in slide-in-from-right-10 duration-700">
+            <div className="h-full bg-white/95 backdrop-blur-xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-white/20 overflow-hidden">
+              <MapSidebar
+                stations={stations}
+                selectedPoint={selectedPoint}
+                onPointClick={(s) => {
+                  setSelectedPoint(s);
+                  mapRef.current.flyTo([s.lat, s.lng], 16);
+                }}
+              />
             </div>
           </div>
-        </>
-      )}
 
-      {/* iOS Floating Button */}
-      {!isSelectMode && !mobileSidebarOpen && (
-        <button
-          onClick={() => setMobileSidebarOpen(true)}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[1005] md:hidden bg-blue-600 text-white px-8 py-4 rounded-full shadow-xl flex items-center gap-3 active:scale-95 transition-all"
-        >
-          <span className="text-lg">📍</span>
-          <span className="font-bold tracking-tight">
-            Станции ({stations.length})
-          </span>
-        </button>
-      )}
+          {/* Кнопка поиска себя */}
+          <button
+            onClick={() =>
+              mapRef.current.locate({ setView: true, maxZoom: 16 })
+            }
+            className="absolute bottom-10 left-6 w-14 h-14 bg-white pointer-events-auto rounded-2xl shadow-2xl flex items-center justify-center active:scale-90 transition-all border border-black/5"
+          >
+            <span className="text-2xl">🎯</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
+
 export default MapComponent;

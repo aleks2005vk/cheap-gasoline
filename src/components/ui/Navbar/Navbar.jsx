@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { selectCurrentUser, logout } from "../../../features/auth/authSlice";
 
@@ -7,17 +7,10 @@ export default function Navbar() {
   const user = useSelector(selectCurrentUser);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  // --- ИСПРАВЛЕНИЕ ---
-  // Мы просто проверяем, есть ли объект user.
-  // Если Redux не пустой, значит мы авторизованы.
   const isAuth = !!user;
-
-  // Отладка: посмотри в консоль браузера (F12), что там выводится
-  useEffect(() => {
-    console.log("Navbar Auth State:", { isAuth, user });
-  }, [isAuth, user]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -25,35 +18,46 @@ export default function Navbar() {
     setProfileMenuOpen(false);
   };
 
+  const isActive = (path) => location.pathname === path;
+
   return (
-    <header className="bg-[#1f2937] text-white shadow-md relative z-50">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
+    <header className="sticky top-0 w-full z-[1000] px-0 sm:px-6 sm:pt-4">
+      <div className="mx-auto max-w-7xl bg-black/[0.85] backdrop-blur-2xl sm:rounded-3xl border-b sm:border border-white/10 shadow-2xl">
+        <div className="flex h-16 items-center justify-between px-6">
           {/* ЛОГОТИП */}
           <div className="flex items-center gap-8">
-            <Link className="flex items-center gap-2 group" to="/">
-              <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center group-hover:bg-teal-400 transition shadow-lg shadow-teal-500/20">
-                <span className="text-white font-bold text-lg">▲</span>
+            <Link className="flex items-center gap-3 group" to="/">
+              <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center transition-transform duration-500 group-hover:rotate-[360deg]">
+                <div className="w-3 h-3 bg-black transform rotate-45"></div>
               </div>
-              <span className="font-bold text-xl tracking-tight text-gray-100 group-hover:text-white">
-                GasApp
+              <span className="font-medium text-lg tracking-[0.1em] text-white uppercase">
+                Gas<span className="font-light opacity-50">App</span>
               </span>
             </Link>
 
-            {/* НАВИГАЦИЯ (DESKTOP) */}
+            {/* НАВИГАЦИЯ */}
             <nav className="hidden md:block">
-              <ul className="flex items-center gap-6 text-sm font-medium text-gray-400">
+              <ul className="flex items-center gap-8 text-[11px] uppercase tracking-[0.2em] font-medium">
                 <li>
-                  <Link to="/map" className="hover:text-teal-400 transition">
+                  <Link
+                    to="/map"
+                    className={`relative py-1 transition-all ${isActive("/map") ? "text-white" : "text-white/40 hover:text-white"}`}
+                  >
                     Карта
+                    {isActive("/map") && (
+                      <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full"></span>
+                    )}
                   </Link>
                 </li>
                 <li>
                   <Link
                     to="/services"
-                    className="hover:text-teal-400 transition"
+                    className={`relative py-1 transition-all ${isActive("/services") ? "text-white" : "text-white/40 hover:text-white"}`}
                   >
                     Сервисы
+                    {isActive("/services") && (
+                      <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-white rounded-full"></span>
+                    )}
                   </Link>
                 </li>
               </ul>
@@ -61,45 +65,42 @@ export default function Navbar() {
           </div>
 
           {/* ПРАВАЯ ЧАСТЬ */}
-          <div className="flex items-center gap-4">
-            {/* Кнопка Добавить фото (всегда видна) */}
+          <div className="flex items-center gap-5">
             <Link
               to="/add-photo"
-              className="hidden sm:flex items-center gap-2 rounded-full bg-gray-700/50 px-4 py-2 text-sm font-medium text-green-400 hover:bg-gray-700 hover:text-green-300 transition border border-gray-600"
+              className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/20 text-white text-[10px] uppercase tracking-widest font-bold hover:bg-white hover:text-black transition-all duration-300 active:scale-95"
             >
-              <span>📸</span>
-              <span>Добавить фото</span>
+              <span className="text-xs">＋</span>
+              <span className="hidden sm:inline">Обновить цену</span>
             </Link>
 
-            <div className="h-6 w-[1px] bg-gray-700 mx-2 hidden sm:block"></div>
-
-            {/* БЛОК АВТОРИЗАЦИИ */}
             {isAuth ? (
               <div className="relative">
                 <button
                   onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                  className="flex items-center gap-3 group focus:outline-none"
+                  className="flex items-center gap-3 focus:outline-none group"
                 >
-                  <div className="flex flex-col items-end leading-none hidden md:flex">
-                    <span className="text-sm font-bold text-gray-200 group-hover:text-white transition">
-                      {user.name || user.email?.split("@")[0] || "User"}
+                  <div className="flex flex-col items-end mr-1 hidden sm:flex text-right">
+                    <span className="text-[11px] font-bold text-white uppercase tracking-wider group-hover:opacity-70 transition">
+                      {user.name || "User"}
                     </span>
-                    <span className="text-[10px] text-teal-500 font-medium uppercase tracking-wider">
-                      Online
+                    <span className="text-[9px] text-white/30 font-medium">
+                      {user.is_admin ? "Administrator" : "Verified Account"}
                     </span>
                   </div>
 
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-500 p-[2px] shadow-lg shadow-teal-500/20 group-hover:shadow-teal-500/40 transition">
-                    <div className="w-full h-full rounded-full bg-[#1f2937] flex items-center justify-center overflow-hidden">
+                  {/* КРУЖОК АВАТАРА */}
+                  <div className="w-9 h-9 rounded-full border border-white/20 p-0.5 group-hover:border-white/50 transition duration-300">
+                    <div className="w-full h-full rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden">
                       {user.avatar ? (
                         <img
                           src={user.avatar}
-                          className="w-full h-full object-cover"
-                          alt="avatar"
+                          alt="profile"
+                          className="w-full h-full object-cover transition duration-500 group-hover:scale-110"
                         />
                       ) : (
-                        <span className="text-teal-500 font-bold text-lg">
-                          {(user.name || user.email || "U")[0].toUpperCase()}
+                        <span className="text-white/50 text-xs uppercase font-bold">
+                          {(user.name || user.email || "U")[0]}
                         </span>
                       )}
                     </div>
@@ -109,16 +110,16 @@ export default function Navbar() {
                 {/* ВЫПАДАЮЩЕЕ МЕНЮ */}
                 {profileMenuOpen && (
                   <>
-                    {/* Прозрачная подложка, чтобы закрыть кликом вне меню */}
                     <div
                       className="fixed inset-0 z-40"
                       onClick={() => setProfileMenuOpen(false)}
                     ></div>
-
-                    <div className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-2xl py-2 z-50 border border-gray-100 transform origin-top-right transition-all">
-                      <div className="px-4 py-3 border-b border-gray-100 mb-1">
-                        <p className="text-sm text-gray-500">Вы вошли как</p>
-                        <p className="text-sm font-bold text-gray-900 truncate">
+                    <div className="absolute right-0 mt-6 w-60 bg-[#111] border border-white/10 rounded-2xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)] py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="px-5 py-3 border-b border-white/5 mb-1">
+                        <p className="text-[9px] text-white/40 uppercase tracking-widest mb-1">
+                          Account Security: Active
+                        </p>
+                        <p className="text-xs text-white truncate font-medium">
                           {user.email}
                         </p>
                       </div>
@@ -128,35 +129,34 @@ export default function Navbar() {
                           navigate("/profile");
                           setProfileMenuOpen(false);
                         }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-teal-600 transition flex items-center gap-3"
+                        className="w-full text-left px-5 py-3 text-xs text-white/70 hover:text-white hover:bg-white/5 transition-all"
                       >
-                        👤 Профиль
+                        Настройки профиля
                       </button>
 
                       <button
                         onClick={handleLogout}
-                        className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 hover:text-red-600 transition flex items-center gap-3 font-medium"
+                        className="w-full text-left px-5 py-3 text-xs text-red-400 hover:bg-red-500/10 transition-all font-medium border-t border-white/5 mt-1"
                       >
-                        🚪 Выйти
+                        Завершить сессию
                       </button>
                     </div>
                   </>
                 )}
               </div>
             ) : (
-              // ЕСЛИ НЕ АВТОРИЗОВАН
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 <Link
                   to="/login"
-                  className="text-gray-300 hover:text-white font-medium text-sm transition px-2"
+                  className="text-white/40 text-[11px] uppercase tracking-widest font-bold hover:text-white transition"
                 >
-                  Войти
+                  Login
                 </Link>
                 <Link
                   to="/register"
-                  className="rounded-full bg-teal-500 px-5 py-2 text-sm font-bold text-white hover:bg-teal-400 transition shadow-lg shadow-teal-500/25"
+                  className="bg-white text-black px-6 py-2.5 rounded-full text-[11px] uppercase tracking-widest font-black hover:bg-neutral-200 transition-all active:scale-95"
                 >
-                  Регистрация
+                  Join
                 </Link>
               </div>
             )}
