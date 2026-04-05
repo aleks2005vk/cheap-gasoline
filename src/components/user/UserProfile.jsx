@@ -1,27 +1,28 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { firebaseLogout } from "../../app/api/firebaseAuth";
 import {
   selectCurrentUser,
   selectCurrentToken,
-  setCredentials,
+  setUser,
   logout,
-} from "../../features/auth/authSlice";
+} from "../../app/api/authSlice";
 
 const UserProfile = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const user = useSelector(selectCurrentUser);
   const token = useSelector(selectCurrentToken);
   const fileInputRef = useRef(null);
 
   const [isEditing, setIsEditing] = useState(false);
-  // Используем аватар из Redux или пустую строку
   const [previewAvatar, setPreviewAvatar] = useState("");
   const [formData, setFormData] = useState({ name: "" });
   const [loading, setLoading] = useState(false);
 
-  // Синхронизируем локальный стейт с данными из Redux при загрузке
   useEffect(() => {
     if (user) {
       setPreviewAvatar(user.avatar || "");
@@ -36,19 +37,17 @@ const UserProfile = () => {
           onClick={() => navigate("/")}
           className="text-white bg-blue-600 px-8 py-3 rounded-2xl font-bold"
         >
-          Вернуться на главную
+          {t("backToDashboard")}
         </button>
       </div>
     );
   }
 
-  // Функция для обработки загрузки фото
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Сохраняем строку Base64 (она длинная, но будет работать везде)
         setPreviewAvatar(reader.result);
       };
       reader.readAsDataURL(file);
@@ -59,22 +58,27 @@ const UserProfile = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Имитируем запрос к серверу
     setTimeout(() => {
       dispatch(
-        setCredentials({
+        setUser({
           user: {
             ...user,
             name: formData.name,
-            avatar: previewAvatar, // Передаем Base64 строку в Redux
+            avatar: previewAvatar,
           },
-          accessToken: token,
+          idToken: token,
         }),
       );
       setIsEditing(false);
       setLoading(false);
-      alert("Профиль обновлен!");
+      alert(t("profileUpdated"));
     }, 800);
+  };
+
+  const handleLogout = async () => {
+    await firebaseLogout();
+    dispatch(logout());
+    navigate("/");
   };
 
   return (
@@ -84,11 +88,10 @@ const UserProfile = () => {
           onClick={() => navigate("/")}
           className="mb-8 text-white/50 hover:text-blue-400 transition-colors uppercase text-xs font-black tracking-widest"
         >
-          ← Back to Dashboard
+          {t("backToDashboard")}
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Левая панель */}
           <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 text-center backdrop-blur-md">
             <div className="relative w-32 h-32 mx-auto mb-4 group">
               <img
@@ -103,7 +106,7 @@ const UserProfile = () => {
                 onClick={() => fileInputRef.current.click()}
                 className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-[10px] font-bold uppercase"
               >
-                Change Photo
+                {t("editProfile")}
               </button>
               <input
                 type="file"
@@ -119,37 +122,33 @@ const UserProfile = () => {
             </p>
 
             <div className="bg-green-500/10 border border-green-500/20 text-green-400 py-2 px-4 rounded-full text-[10px] font-black uppercase inline-block">
-              Status: Verified User
+              {t("statusVerifiedUser")}
             </div>
           </div>
 
-          {/* Правая панель */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-[2rem] p-8 flex justify-between items-center shadow-2xl shadow-blue-900/20">
               <div>
                 <h3 className="text-xl font-black uppercase italic tracking-tighter">
-                  Get PRO Version
+                  {t("getProVersion")}
                 </h3>
-                <p className="text-white/70 text-xs">
-                  No ads and exclusive map features.
-                </p>
+                <p className="text-white/70 text-xs">{t("proDescription")}</p>
               </div>
               <button className="bg-white text-blue-600 px-6 py-3 rounded-xl font-black uppercase text-[10px]">
-                Upgrade
+                {t("upgrade")}
               </button>
             </div>
 
-            {/* Settings Form */}
             <div className="bg-white/5 border border-white/10 rounded-[2rem] p-8">
               <div className="flex justify-between items-center mb-6">
                 <h4 className="font-black uppercase text-sm tracking-widest">
-                  General Settings
+                  {t("generalSettings")}
                 </h4>
                 <button
                   onClick={() => setIsEditing(!isEditing)}
                   className="text-xs text-blue-400 font-bold uppercase"
                 >
-                  {isEditing ? "Cancel" : "Edit Profile"}
+                  {isEditing ? t("cancel") : t("editProfile")}
                 </button>
               </div>
 
@@ -157,13 +156,13 @@ const UserProfile = () => {
                 <form onSubmit={handleUpdate} className="space-y-4">
                   <div>
                     <label className="text-[10px] uppercase text-white/40 font-black ml-2">
-                      Display Name
+                      {t("displayName")}
                     </label>
                     <input
                       value={formData.name}
                       onChange={(e) => setFormData({ name: e.target.value })}
                       className="w-full bg-black/40 border border-white/10 p-4 rounded-xl outline-none focus:border-blue-500 mt-1"
-                      placeholder="Enter name"
+                      placeholder={t("enterName")}
                     />
                   </div>
                   <button
@@ -171,30 +170,27 @@ const UserProfile = () => {
                     disabled={loading}
                     className="w-full bg-blue-600 py-4 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-blue-500 transition-colors"
                   >
-                    {loading ? "Saving..." : "Save Changes"}
+                    {loading ? t("saving") : t("saveChanges")}
                   </button>
                 </form>
               ) : (
                 <div className="space-y-4 opacity-60">
                   <div className="flex justify-between border-b border-white/5 pb-2">
-                    <span className="text-xs uppercase font-bold">Name</span>
+                    <span className="text-xs uppercase font-bold">{t("nameField")}</span>
                     <span className="font-medium">{user.name}</span>
                   </div>
                   <div className="flex justify-between border-b border-white/5 pb-2">
-                    <span className="text-xs uppercase font-bold">Email</span>
+                    <span className="text-xs uppercase font-bold">{t("emailField")}</span>
                     <span className="font-medium">{user.email}</span>
                   </div>
                 </div>
               )}
 
               <button
-                onClick={() => {
-                  dispatch(logout());
-                  navigate("/");
-                }}
+                onClick={handleLogout}
                 className="w-full mt-8 py-4 border border-red-500/20 text-red-500 rounded-xl font-black uppercase text-[10px] hover:bg-red-500/10 transition-colors"
               >
-                Log Out
+                {t("logout")}
               </button>
             </div>
           </div>

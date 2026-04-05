@@ -5,7 +5,7 @@ import { auth } from "./firebaseAuth";
 const baseQuery = fetchBaseQuery({
   baseUrl: API_URL,
   credentials: "include",
-  prepareHeaders: async (headers, { getState }) => {
+  prepareHeaders: async (headers) => {
     // Получить Firebase ID token
     const user = auth.currentUser;
     if (user) {
@@ -34,7 +34,7 @@ const baseQueryWithFirebase = async (args, api, extraOptions) => {
 export const apiSlice = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithFirebase,
-  tagTypes: ["Station", "User", "Profile", "Contributions", "History"],
+  tagTypes: ["Station", "User", "Profile", "Contributions", "History", "Points"],
 
   endpoints: (builder) => ({
     // ============ STATIONS ============
@@ -42,6 +42,11 @@ export const apiSlice = createApi({
     getStations: builder.query({
       query: () => "/api/stations",
       providesTags: ["Station"],
+    }),
+
+    getPoints: builder.query({
+      query: () => "/api/stations",
+      providesTags: ["Points"],
     }),
 
     getStationByID: builder.query({
@@ -161,6 +166,7 @@ export const apiSlice = createApi({
 
 export const {
   useGetStationsQuery,
+  useGetPointsQuery,
   useGetStationByIDQuery,
   useGetBestPriceQuery,
   useGetPriceHistoryQuery,

@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../../app/api/authSlice";
 import { API_URL } from "../../config";
+import { useTranslation } from "react-i18next";
 
 const AdminPanel = () => {
   const navigate = useNavigate();
   const user = useSelector(selectCurrentUser);
-  
+  const { t } = useTranslation();
+
   const [users, setUsers] = useState([]);
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,157 +18,146 @@ const AdminPanel = () => {
   const [formData, setFormData] = useState({
     newRole: "",
     station: "",
-    banReason: ""
+    banReason: "",
   });
 
-  // Проверка доступа (только для ADMIN)
   useEffect(() => {
     if (!user || user.role !== "admin") {
       navigate("/");
       return;
     }
-    
     fetchUsers();
     fetchStations();
-  }, []);
+  }, [user, navigate, fetchUsers]);
 
-  // Получить список пользователей
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("accessToken");
-      const response = await fetch(`${API_URL}/api/admin/users`, {
-        headers: { "Authorization": `Bearer ${token}` }
+      const response = await fetch(`${API_URL}/api/admin/users-with-roles`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
       if (response.ok) {
         const data = await response.json();
-        setUsers(data);
+        setUsers(data.users);
       } else {
-        setError("Ошибка загрузки пользователей");
+        setError(t("loadError"));
       }
     } catch (err) {
-      setError("Соединение с сервером потеряно");
+      setError(t("connError"));
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  // Получить список станций
   const fetchStations = async () => {
     try {
       const token = localStorage.getItem("accessToken");
       const response = await fetch(`${API_URL}/api/stations`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
-      
       if (response.ok) {
         const data = await response.json();
         setStations(data);
       }
     } catch (err) {
-      console.error("Ошибка загрузки станций", err);
+      console.error(err);
     }
   };
 
-  // Изменить роль пользователя
-  const handleChangeRole = async (userId, newRole) => {
+  const handleChangeRole = async (firebaseUid, newRole) => {
     try {
       const token = localStorage.getItem("accessToken");
-      const response = await fetch(`${API_URL}/api/admin/change-user-role`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
+      const response = await fetch(
+        `${API_URL}/api/admin/set-user-role?firebase_uid=${firebaseUid}&role=${newRole}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-        body: JSON.stringify({
-          user_id: userId,
-          new_role: newRole,
-          reason: "Изменено администратором"
-        })
-      });
-
+      );
       if (response.ok) {
         fetchUsers();
         setFormData({ ...formData, newRole: "" });
-        alert("✅ Роль успешно изменена");
+        alert(t("roleSaved"));
       } else {
-        alert("❌ Ошибка при изменении роли");
+        const err = await response.json();
+        alert(`❌ ${err.detail || t("connError")}`);
       }
     } catch (err) {
       console.error(err);
-      alert("❌ Соединение с сервером потеряно");
+      alert(`❌ ${t("connError")}`);
     }
   };
 
-  // Привязать пользователя к станции
   const handleAssignStation = async (userId, stationId) => {
     try {
       const token = localStorage.getItem("accessToken");
-      const response = await fetch(`${API_URL}/api/admin/assign-user-to-station`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
+      const response = await fetch(
+        `${API_URL}/api/admin/assign-user-to-station`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            station_id: stationId,
+            role_at_station: "operator",
+          }),
         },
-        body: JSON.stringify({
-          user_id: userId,
-          station_id: stationId,
-          role_at_station: "operator"
-        })
-      });
-
+      );
       if (response.ok) {
         fetchUsers();
         setFormData({ ...formData, station: "" });
-        alert("✅ Пользователь назначен на станцию");
+        alert(t("stationAssigned"));
       } else {
         const data = await response.json();
-        alert(`❌ Ошибка: ${data.detail}`);
+        alert(`❌ ${data.detail}`);
       }
     } catch (err) {
       console.error(err);
-      alert("❌ Соединение с сервером потеряно");
+      alert(`❌ ${t("connError")}`);
     }
   };
 
-  // Заблокировать пользователя
   const handleBanUser = async (userId, reason) => {
     try {
       const token = localStorage.getItem("accessToken");
       const response = await fetch(`${API_URL}/api/admin/ban-user/${userId}`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ ban_reason: reason })
+        body: JSON.stringify({ ban_reason: reason }),
       });
-
       if (response.ok) {
         fetchUsers();
-        alert("✅ Пользователь заблокирован");
+        alert(t("userBanned"));
       } else {
-        alert("❌ Ошибка при блокировке");
+        alert(`❌ ${t("connError")}`);
       }
     } catch (err) {
       console.error(err);
-      alert("❌ Соединение с сервером потеряно");
+      alert(`❌ ${t("connError")}`);
     }
   };
 
-  if (loading) {
-    return <div className="p-8 text-center">⏳ Загрузка...</div>;
-  }
+  if (loading) return <div className="p-8 text-center">{t("loading")}</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-24 pb-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 pt-24 pb-20">
       <div className="max-w-6xl mx-auto px-4">
-        {/* ЗАГОЛОВОК */}
         <div className="mb-8">
-          <h1 className="text-4xl font-black text-gray-900">👑 АДМИН-ПАНЕЛЬ</h1>
-          <p className="text-gray-600 mt-2">Управление пользователями и ролями</p>
+          <h1 className="text-4xl font-black text-gray-900 dark:text-white">
+            {t("adminPanel")}
+          </h1>
+          <p className="text-gray-600 dark:text-gray-300 mt-2">{t("manageUsers")}</p>
         </div>
 
         {error && (
@@ -175,78 +166,99 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ */}
-        <div className="bg-white rounded-3xl shadow-lg p-6 overflow-x-auto">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg p-6 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-100 border-b-2 border-gray-300">
               <tr>
-                <th className="px-4 py-3 text-left font-black">EMAIL</th>
-                <th className="px-4 py-3 text-left font-black">ТЕКУЩАЯ РОЛЬ</th>
-                <th className="px-4 py-3 text-left font-black">СТАТУС</th>
-                <th className="px-4 py-3 text-left font-black">СТАНЦИЙ</th>
-                <th className="px-4 py-3 text-center font-black">ДЕЙСТВИЯ</th>
+                <th className="px-4 py-3 text-left font-black">
+                  {t("emailCol")}
+                </th>
+                <th className="px-4 py-3 text-left font-black">
+                  {t("roleCol")}
+                </th>
+                <th className="px-4 py-3 text-left font-black">
+                  {t("statusCol")}
+                </th>
+                <th className="px-4 py-3 text-left font-black">
+                  {t("lastSignIn")}
+                </th>
+                <th className="px-4 py-3 text-center font-black">
+                  {t("actions")}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {users.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={u.firebase_uid}
+                  className="hover:bg-gray-50 transition-colors"
+                >
                   <td className="px-4 py-3 font-mono text-xs">{u.email}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      u.role === 'admin' ? 'bg-red-100 text-red-700' :
-                      u.role === 'station_owner' ? 'bg-blue-100 text-blue-700' :
-                      u.role === 'moderator' ? 'bg-green-100 text-green-700' :
-                      u.role === 'user' ? 'bg-gray-100 text-gray-700' :
-                      'bg-gray-50 text-gray-500'
-                    }`}>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        u.role === "admin"
+                          ? "bg-red-100 text-red-700"
+                          : u.role === "station_owner"
+                            ? "bg-blue-100 text-blue-700"
+                            : u.role === "moderator"
+                              ? "bg-green-100 text-green-700"
+                              : u.role === "user"
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-gray-50 text-gray-500"
+                      }`}
+                    >
                       {u.role.toUpperCase()}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`font-bold text-xs ${
-                      u.is_banned ? 'text-red-600' : 'text-green-600'
-                    }`}>
-                      {u.is_banned ? '🔒 ЗАБЛОКИРОВАН' : '✅ АКТИВЕН'}
+                    <span
+                      className={`font-bold text-xs ${u.disabled ? "text-red-600" : "text-green-600"}`}
+                    >
+                      {u.disabled ? t("bannedStatus") : t("activeStatus")}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center font-bold">
-                    {u.managed_stations_count}
+                    {u.last_sign_in
+                      ? new Date(u.last_sign_in).toLocaleDateString()
+                      : t("never")}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => setSelectedUser(u)}
                       className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
                     >
-                      ⚙️ УПРАВЛЯТЬ
+                      {t("manage")}
                     </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-
           {users.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              Пользователей не найдено
-            </div>
+            <div className="text-center py-8 text-gray-500">{t("noUsers")}</div>
           )}
         </div>
 
-        {/* МОДАЛЬ ДЛЯ УПРАВЛЕНИЯ ПОЛЬЗОВАТЕЛЕМ */}
         {selectedUser && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-3xl p-8 max-w-md w-full">
-              <h2 className="text-2xl font-black mb-4">📋 {selectedUser.email}</h2>
+              <h2 className="text-2xl font-black mb-4">
+                📋 {selectedUser.email}
+              </h2>
 
-              {/* ИЗМЕНИТЬ РОЛЬ */}
               <div className="mb-6">
-                <label className="block text-sm font-bold mb-2">🔄 ИЗМЕНИТЬ РОЛЬ:</label>
+                <label className="block text-sm font-bold mb-2">
+                  {t("changeRole")}
+                </label>
                 <select
                   value={formData.newRole}
-                  onChange={(e) => setFormData({...formData, newRole: e.target.value})}
+                  onChange={(e) =>
+                    setFormData({ ...formData, newRole: e.target.value })
+                  }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg font-bold"
                 >
-                  <option value="">-- Выберите роль --</option>
+                  <option value="">{t("selectRole")}</option>
                   <option value="admin">👑 ADMIN</option>
                   <option value="station_owner">🏢 STATION_OWNER</option>
                   <option value="moderator">✓ MODERATOR</option>
@@ -255,65 +267,84 @@ const AdminPanel = () => {
                 </select>
                 {formData.newRole && (
                   <button
-                    onClick={() => handleChangeRole(selectedUser.id, formData.newRole)}
+                    onClick={() =>
+                      handleChangeRole(
+                        selectedUser.firebase_uid,
+                        formData.newRole,
+                      )
+                    }
                     className="mt-2 w-full px-4 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700"
                   >
-                    ✅ СОХРАНИТЬ РОЛЬ
+                    {t("saveRole")}
                   </button>
                 )}
               </div>
 
-              {/* ПРИВЯЗАТЬ К СТАНЦИИ */}
               {selectedUser.role === "station_owner" && (
                 <div className="mb-6">
-                  <label className="block text-sm font-bold mb-2">🏪 ПРИВЯЗАТЬ К СТАНЦИИ:</label>
+                  <label className="block text-sm font-bold mb-2">
+                    {t("assignStation")}
+                  </label>
                   <select
                     value={formData.station}
-                    onChange={(e) => setFormData({...formData, station: e.target.value})}
+                    onChange={(e) =>
+                      setFormData({ ...formData, station: e.target.value })
+                    }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg font-bold"
                   >
-                    <option value="">-- Выберите станцию --</option>
+                    <option value="">{t("selectStation")}</option>
                     {stations.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.brand})</option>
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.brand})
+                      </option>
                     ))}
                   </select>
                   {formData.station && (
                     <button
-                      onClick={() => handleAssignStation(selectedUser.id, parseInt(formData.station))}
+                      onClick={() =>
+                        handleAssignStation(
+                          selectedUser.id,
+                          parseInt(formData.station),
+                        )
+                      }
                       className="mt-2 w-full px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700"
                     >
-                      ✅ НАЗНАЧИТЬ СТАНЦИЮ
+                      {t("assignStationBtn")}
                     </button>
                   )}
                 </div>
               )}
 
-              {/* ЗАБЛОКИРОВАТЬ */}
               {!selectedUser.is_banned && (
                 <div className="mb-6">
-                  <label className="block text-sm font-bold mb-2">🔒 БЛОКИРОВАТЬ:</label>
+                  <label className="block text-sm font-bold mb-2">
+                    {t("blockUser")}
+                  </label>
                   <input
                     type="text"
-                    placeholder="Причина блокировки"
+                    placeholder={t("banReasonPlaceholder")}
                     value={formData.banReason}
-                    onChange={(e) => setFormData({...formData, banReason: e.target.value})}
+                    onChange={(e) =>
+                      setFormData({ ...formData, banReason: e.target.value })
+                    }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg font-bold mb-2"
                   />
                   <button
-                    onClick={() => handleBanUser(selectedUser.id, formData.banReason)}
+                    onClick={() =>
+                      handleBanUser(selectedUser.id, formData.banReason)
+                    }
                     className="w-full px-4 py-2 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700"
                   >
-                    ⚠️ ЗАБЛОКИРОВАТЬ ПОЛЬЗОВАТЕЛЯ
+                    {t("banUserBtn")}
                   </button>
                 </div>
               )}
 
-              {/* ЗАКРЫТЬ */}
               <button
                 onClick={() => setSelectedUser(null)}
                 className="w-full px-4 py-2 bg-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-300"
               >
-                ❌ ЗАКРЫТЬ
+                {t("close")}
               </button>
             </div>
           </div>

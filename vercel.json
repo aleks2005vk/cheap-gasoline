@@ -1,12 +1,12 @@
 {
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
+  "version": 2,
   "framework": "vite",
+  "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "env": {
-    "VITE_ENV": "production",
-    "VITE_API_URL": "https://api.cheap-gasoline.com"
-  },
-  "regions": ["iad1"]
+  "installCommand": "npm install",
+  "cleanUrls": true,
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }

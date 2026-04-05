@@ -1,4 +1,5 @@
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 const buildCoords = (obj) => {
   if (!obj) return null;
@@ -9,17 +10,16 @@ const buildCoords = (obj) => {
 };
 
 const RouteButtons = ({ userLocation, selectedPoint }) => {
+  const { t } = useTranslation();
   const user = buildCoords(userLocation);
   const point = buildCoords(selectedPoint);
-
-  const name = selectedPoint?.name ?? "АЗС";
+  const name = selectedPoint?.name ?? t("gasStation");
 
   const openUrl = useCallback((url) => {
     const newWindow = window.open(url, "_blank", "noopener,noreferrer");
     if (!newWindow) window.location.href = url;
   }, []);
 
-  // Если нет координат пользователя, показываем упрощенные кнопки (только до точки)
   const uLat = user?.lat;
   const uLng = user?.lng;
   const pLat = point?.lat;
@@ -34,17 +34,12 @@ const RouteButtons = ({ userLocation, selectedPoint }) => {
     openUrl(url);
   };
 
-  const openGoogle = () => {
-    // Исправленный URL для Google Maps
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLng}&travelmode=driving`;
-    openUrl(url);
-  };
-
-  const openApple = () => {
-    const url = `http://maps.apple.com/?daddr=${pLat},${pLng}&dirflg=d`;
-    openUrl(url);
-  };
-
+  const openGoogle = () =>
+    openUrl(
+      `https://www.google.com/maps/dir/?api=1&destination=${pLat},${pLng}&travelmode=driving`,
+    );
+  const openApple = () =>
+    openUrl(`http://maps.apple.com/?daddr=${pLat},${pLng}&dirflg=d`);
   const openWaze = () =>
     openUrl(`https://waze.com/ul?ll=${pLat},${pLng}&navigate=yes`);
 
@@ -54,12 +49,12 @@ const RouteButtons = ({ userLocation, selectedPoint }) => {
       if (navigator.share) {
         await navigator.share({
           title: name,
-          text: `АЗС ${name}. Цены на топливо в реальном времени:`,
+          text: `${t("gasStation")} ${name}`,
           url: shareUrl,
         });
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        alert("Ссылка скопирована!");
+        alert(t("linkCopied"));
       }
     } catch (e) {
       console.warn(e);
@@ -70,10 +65,9 @@ const RouteButtons = ({ userLocation, selectedPoint }) => {
     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
       {!user && (
         <p className="text-[10px] text-center text-amber-600 font-medium bg-amber-50 py-1 rounded-lg">
-          Маршрут будет точнее, если включить GPS
+          {t("routeAccuracy")}
         </p>
       )}
-
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={openYandex}
@@ -83,7 +77,6 @@ const RouteButtons = ({ userLocation, selectedPoint }) => {
             Яндекс
           </span>
         </button>
-
         <button
           onClick={openGoogle}
           className="flex items-center justify-center p-3 bg-[#4285F4] hover:bg-[#357ae8] rounded-2xl transition-all active:scale-95 shadow-sm"
@@ -92,7 +85,6 @@ const RouteButtons = ({ userLocation, selectedPoint }) => {
             Google
           </span>
         </button>
-
         <button
           onClick={openApple}
           className="flex items-center justify-center p-3 bg-black hover:bg-gray-800 rounded-2xl transition-all active:scale-95 shadow-sm"
@@ -101,17 +93,15 @@ const RouteButtons = ({ userLocation, selectedPoint }) => {
             Apple
           </span>
         </button>
-
         <button
           onClick={onShare}
           className="flex items-center justify-center p-3 bg-white hover:bg-gray-50 rounded-2xl transition-all active:scale-95 border border-gray-200 shadow-sm"
         >
           <span className="text-[11px] font-black uppercase text-gray-700">
-            Поделиться
+            {t("share")}
           </span>
         </button>
       </div>
-
       <div className="flex justify-center gap-6 pt-1">
         <button
           onClick={openWaze}

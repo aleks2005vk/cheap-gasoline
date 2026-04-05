@@ -10,23 +10,15 @@ import sys
 # Убедимся что папка data существует
 os.makedirs("data", exist_ok=True)
 
-from main import (
-    Station, StationsBase, stations_engine, StationsSessionLocal,
-    PriceUpdate, PricesBase, prices_engine, PricesSessionLocal,
-    SiteInfo, SiteInfoBase, siteinfo_engine, SiteInfoSessionLocal,
-    User, UsersBase, users_engine, UsersSessionLocal
+from database import get_session
+from models import (
+    User, UserProfile, Station, PriceUpdate, 
+    ContributionHistory, PriceConfirmation, FlaggedPrice,
+    RolePermission, AuditLog, PriceHistory, Achievement, UserAchievement,
+    UserStation
 )
-import auth_utils
-
-# Создаем таблицы
-UsersBase.metadata.create_all(bind=users_engine)
-StationsBase.metadata.create_all(bind=stations_engine)
-PricesBase.metadata.create_all(bind=prices_engine)
-SiteInfoBase.metadata.create_all(bind=siteinfo_engine)
-
-# === ИНИЦИАЛИЗАЦИЯ СТАНЦИЙ ===
 def init_stations():
-    db = StationsSessionLocal()
+    db = get_session()
     
     # Проверяем, есть ли уже станции
     count = db.query(Station).count()
@@ -76,16 +68,25 @@ def init_stations():
             elif 'ROMPETROL' in name_upper:
                 brand = "ROMPETROL"
             
-            # Определяем конфиг топлива по бренду
-            brand_upper = brand.upper()
-            configs = {
-                "SOCAR": [{"id": "n95", "label": "NANO 95"}, {"id": "n92", "label": "NANO 92"}, {"id": "diesel", "label": "NANO DT"}, {"id": "lpg", "label": "LPG"}],
-                "GULF": [{"id": "g98", "label": "G-Force 98"}, {"id": "g95", "label": "G-Force 95"}, {"id": "diesel", "label": "G-Force D"}],
-                "WISSOL": [{"id": "eko_super", "label": "EKO SUPER"}, {"id": "eko_regular", "label": "EKO REGULAR"}, {"id": "diesel", "label": "EKO DIESEL"}],
-                "LUKOIL": [{"id": "ecto_95", "label": "95 ECTO"}, {"id": "ecto_92", "label": "92 ECTO"}, {"id": "diesel", "label": "D ECTO"}],
-                "ROMPETROL": [{"id": "efix_98", "label": "98 EFIX"}, {"id": "efix_95", "label": "95 EFIX"}, {"id": "diesel", "label": "D EFIX"}]
-            }
-            fuel_config = configs.get(brand_upper, configs["SOCAR"])
+            # Используем fuel_config из points.json, если он есть, иначе генерируем по бренду
+            fuel_config = None
+            if point.get('fuel_config'):
+                try:
+                    fuel_config = json.loads(point.get('fuel_config'))
+                except:
+                    pass
+            
+            if not fuel_config:
+                # Определяем конфиг топлива по бренду
+                brand_upper = brand.upper()
+                configs = {
+                    "SOCAR": [{"id": "regular", "label": "Regular"}, {"id": "premium", "label": "Premium"}, {"id": "diesel", "label": "Diesel"}],
+                    "GULF": [{"id": "regular", "label": "Regular"}, {"id": "premium", "label": "Premium"}, {"id": "diesel", "label": "Diesel"}],
+                    "WISSOL": [{"id": "eko_regular", "label": "EKO REGULAR"}, {"id": "eko_premium", "label": "EKO PREMIUM"}, {"id": "eko_super", "label": "EKO SUPER"}, {"id": "diesel", "label": "EKO DIESEL"}],
+                    "LUKOIL": [{"id": "regular", "label": "Regular"}, {"id": "premium", "label": "Premium"}, {"id": "diesel", "label": "Diesel"}],
+                    "ROMPETROL": [{"id": "regular", "label": "Regular"}, {"id": "premium", "label": "Premium"}, {"id": "diesel", "label": "Diesel"}]
+                }
+                fuel_config = configs.get(brand_upper, configs["SOCAR"])
             
             station = Station(
                 name=point.get('name', 'Unknown Station'),
@@ -116,7 +117,7 @@ def init_stations():
 
 # === ИНИЦИАЛИЗАЦИЯ ЦЕН ===
 def init_prices():
-    db = PricesSessionLocal()
+    db = get_session()
     
     # Проверяем, есть ли уже цены
     count = db.query(PriceUpdate).count()
@@ -125,88 +126,88 @@ def init_prices():
         db.close()
         return
     
-    # Примерные цены для каждой станции
-    sample_prices = [
-        (1, "n95", 3.19),
-        (1, "n92", 2.99),
-        (1, "diesel", 3.05),
-        (1, "lpg", 1.65),
-        (2, "g98", 3.25),
-        (2, "g95", 3.15),
-        (2, "diesel", 3.10),
-        (3, "ecto_100", 3.22),
-        (3, "ecto_95", 3.12),
-        (3, "ecto_92", 2.95),
-        (3, "diesel", 3.08),
-        (4, "eko_super", 3.20),
-        (4, "eko_premium", 3.10),
-        (4, "eko_regular", 2.98),
-        (4, "diesel", 3.06),
-        (5, "efix_98", 3.23),
-        (5, "efix_95", 3.13),
-        (5, "efix_92", 2.97),
-        (5, "diesel", 3.07),
-    ]
+    # Получаем все станции
+    stations = db.query(Station).all()
     
     try:
-        for station_id, fuel_type, price in sample_prices:
-            price_update = PriceUpdate(
-                station_id=station_id,
-                fuel_type=fuel_type,
-                price=price,
-                timestamp=datetime.datetime.utcnow(),
-                source="init_data"
-            )
-            db.add(price_update)
+        added = 0
+        for station in stations:
+            if station.fuel_config:
+                fuel_list = json.loads(station.fuel_config)
+                for fuel in fuel_list:
+                    fuel_id = fuel.get('id')
+                    if fuel_id:
+                        # Генерируем случайную цену в разумных пределах
+                        import random
+                        if 'super' in fuel_id or 'premium' in fuel_id:
+                            price = round(random.uniform(3.10, 3.30), 2)
+                        elif 'regular' in fuel_id:
+                            price = round(random.uniform(2.90, 3.10), 2)
+                        elif 'diesel' in fuel_id:
+                            price = round(random.uniform(2.95, 3.15), 2)
+                        else:
+                            price = round(random.uniform(2.80, 3.20), 2)
+                        
+                        price_update = PriceUpdate(
+                            station_id=station.id,
+                            fuel_type=fuel_id,
+                            price=price,
+                            timestamp=datetime.datetime.utcnow(),
+                            source="init_data"
+                        )
+                        db.add(price_update)
+                        added += 1
         
         db.commit()
-        print(f"✓ Добавлено {len(sample_prices)} записей цен")
+        print(f"✓ Добавлено {added} записей цен для {len(stations)} станций")
     except Exception as e:
         db.rollback()
         print(f"✗ Ошибка при добавлении цен: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
 # === ИНИЦИАЛИЗАЦИЯ ИНФОРМАЦИИ О САЙТЕ ===
-def init_site_info():
-    db = SiteInfoSessionLocal()
-    
-    # Проверяем, есть ли уже инфо
-    count = db.query(SiteInfo).count()
-    if count > 0:
-        print(f"✓ В БД уже есть {count} записей о сайте")
-        db.close()
-        return
-    
-    site_data = [
-        ("app_title", "Cheap Gasoline - Лучшие цены на топливо в Грузии", "Название приложения"),
-        ("app_description", "Найдите ближайшую АЗС с лучшими ценами на бензин и дизель", "Описание приложения"),
-        ("support_email", "support@cheapgasoline.ge", "Email поддержки"),
-        ("currency", "GEL", "Валюта"),
-        ("default_city", "Tbilisi", "Город по умолчанию"),
-    ]
-    
-    try:
-        for key, value, description in site_data:
-            site_info = SiteInfo(
-                key=key,
-                value=value,
-                description=description,
-                updated_at=datetime.datetime.utcnow()
-            )
-            db.add(site_info)
-        
-        db.commit()
-        print(f"✓ Добавлено {len(site_data)} записей о сайте")
-    except Exception as e:
-        db.rollback()
-        print(f"✗ Ошибка при добавлении информации о сайте: {e}")
-    finally:
-        db.close()
+# def init_site_info():
+#     db = get_session()
+#     
+#     # Проверяем, есть ли уже инфо
+#     count = db.query(SiteInfo).count()
+#     if count > 0:
+#         print(f"✓ В БД уже есть {count} записей о сайте")
+#         db.close()
+#         return
+#     
+#     site_data = [
+#         ("app_title", "Cheap Gasoline - Лучшие цены на топливо в Грузии", "Название приложения"),
+#         ("app_description", "Найдите ближайшую АЗС с лучшими ценами на бензин и дизель", "Описание приложения"),
+#         ("support_email", "support@cheapgasoline.ge", "Email поддержки"),
+#         ("currency", "GEL", "Валюта"),
+#         ("default_city", "Tbilisi", "Город по умолчанию"),
+#     ]
+#     
+#     try:
+#         for key, value, description in site_data:
+#             site_info = SiteInfo(
+#                 key=key,
+#                 value=value,
+#                 description=description,
+#                 updated_at=datetime.datetime.utcnow()
+#             )
+#             db.add(site_info)
+#         
+#         db.commit()
+#         print(f"✓ Добавлено {len(site_data)} записей о сайте")
+#     except Exception as e:
+#         db.rollback()
+#         print(f"✗ Ошибка при добавлении информации о сайте: {e}")
+#     finally:
+#         db.close()
 
 # === ИНИЦИАЛИЗАЦИЯ СУПЕРАДМИНА ===
 def init_superadmin():
-    db = UsersSessionLocal()
+    db = get_session()
     
     # Проверяем, есть ли уже суперадмины
     superadmin = db.query(User).filter(User.role == "superadmin").first()
@@ -251,7 +252,7 @@ if __name__ == "__main__":
     init_superadmin()
     init_stations()
     init_prices()
-    init_site_info()
+    # init_site_info()  # Закомментировано, так как модель SiteInfo не используется
     print("=" * 50)
     print("✓ Инициализация завершена!")
     print("=" * 50)

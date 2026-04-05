@@ -1,35 +1,34 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-// ИСПРАВИЛ ПУТЬ К AUTH SLICE (3 ТОЧКИ)
-import { selectCurrentUser } from "../../../features/auth/authSlice";
-// ИМПОРТ КОНФИГА
+import { selectCurrentUser } from "../../../app/api/authSlice";
 import { API_URL } from "../../../config";
+import StationSearch from "./StationSearch";
+import { useTranslation } from "react-i18next";
 
-// СОПОСТАВЛЕНИЕ РОЛЕЙ С ПРАВАМИ
 const ROLE_CONFIG = {
   admin: {
-    label: "👑 АДМИНИСТРАТОР",
+    labelKey: "roleAdmin",
     color: "bg-red-100 text-red-700",
     canUpdate: true,
   },
   station_owner: {
-    label: "🏢 ВЛАДЕЛЕЦ",
+    labelKey: "roleOwner",
     color: "bg-blue-100 text-blue-700",
     canUpdate: true,
   },
   moderator: {
-    label: "✓ МОДЕРАТОР",
+    labelKey: "roleModerator",
     color: "bg-green-100 text-green-700",
     canUpdate: true,
   },
   user: {
-    label: "👤 ПОЛЬЗОВАТЕЛЬ",
+    labelKey: "roleUser",
     color: "bg-gray-100 text-gray-700",
     canUpdate: true,
   },
   guest: {
-    label: "🔒 ГОСТЬ",
+    labelKey: "roleGuest",
     color: "bg-gray-50 text-gray-500",
     canUpdate: false,
   },
@@ -38,34 +37,28 @@ const ROLE_CONFIG = {
 const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
   const navigate = useNavigate();
   const user = useSelector(selectCurrentUser);
+  const { t } = useTranslation();
   const scrollContainerRef = useRef(null);
   const cardRefs = useRef({});
   const [filterMode, setFilterMode] = useState("nearest");
-  
-  // Новые состояния для слайдера
+  const [searchFilteredStations, setSearchFilteredStations] =
+    useState(stations);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [startY, setStartY] = useState(0);
   const [currentY, setCurrentY] = useState(0);
   const sidebarRef = useRef(null);
 
-  // ОПРЕДЕЛЕНИЕ ТЕКУЩЕЙ РОЛИ
   const currentRole = user?.role || "guest";
   const roleConfig = ROLE_CONFIG[currentRole] || ROLE_CONFIG.guest;
 
-  // ФУНКЦИЯ ДЛЯ ПРОВЕРКИ, МОЖЕТ ЛИ ПОЛЬЗОВАТЕЛЬ ОБНОВИТЬ ЦЕНУ ДЛЯ СТАНЦИИ
-  const canUpdatePrice = (stationId) => {
+  const canUpdatePrice = () => {
     if (!user || currentRole === "guest") return false;
     if (currentRole === "admin" || currentRole === "moderator") return true;
-    if (currentRole === "station_owner") {
-      // Проверяем, принадлежит ли станция пользователю
-      return user.managed_stations?.includes(stationId) ?? false;
-    }
-    if (currentRole === "user") return true; // USER может предлагать цены
     return false;
   };
 
-  // Функции для управления слайдером
   const handleTouchStart = (e) => {
     setIsDragging(true);
     setStartY(e.touches[0].clientY);
@@ -74,37 +67,38 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
 
   const handleTouchMove = (e) => {
     if (!isDragging) return;
-    // Не используем preventDefault, так как touch события passive по умолчанию
-    // Вместо этого используем CSS touch-action: none
     setCurrentY(e.touches[0].clientY);
   };
 
   const handleTouchEnd = () => {
     if (!isDragging) return;
-    
     const deltaY = currentY - startY;
-    const threshold = 100; // Минимальное расстояние для срабатывания
-    
-    if (deltaY > threshold) {
-      // Свайп вниз - закрываем
+    if (deltaY > 200) {
+      setIsHidden(true);
       setIsExpanded(false);
-    } else if (deltaY < -threshold) {
-      // Свайп вверх - раскрываем
+    } else if (deltaY > 100) {
+      setIsExpanded(false);
+      setIsHidden(false);
+    } else if (deltaY < -100) {
       setIsExpanded(true);
+      setIsHidden(false);
     }
-    
     setIsDragging(false);
     setStartY(0);
     setCurrentY(0);
   };
 
   const handleDoubleClick = () => {
-    setIsExpanded(!isExpanded);
+    if (isHidden) {
+      setIsHidden(false);
+      setIsExpanded(false);
+    } else {
+      setIsExpanded(!isExpanded);
+    }
   };
 
-  // Вычисляем трансформацию во время перетаскивания
   const getTransform = () => {
-    if (!isDragging) return '';
+    if (isHidden || !isDragging) return "";
     const deltaY = Math.max(0, currentY - startY);
     return `translateY(${deltaY}px)`;
   };
@@ -126,11 +120,9 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
   }, [selectedPoint]);
 
   const handlePriceClick = async (station, fuelId, currentLabel) => {
-    const newVal = prompt(`Введите цену для ${currentLabel}:`);
+    const newVal = prompt(`${t("enterPriceFor")} ${currentLabel}:`);
     if (!newVal || isNaN(parseFloat(newVal))) return;
-
     try {
-      // ИСПОЛЬЗУЕМ API_URL ИЗ КОНФИГА
       const response = await fetch(`${API_URL}/api/update-price-manual`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,7 +132,6 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
           prices: { [fuelId]: newVal },
         }),
       });
-
       if (response.ok) {
         setStations((prev) =>
           prev.map((s) =>
@@ -157,42 +148,48 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
       }
     } catch (err) {
       console.error("Ошибка при обновлении цены:", err);
-      alert("Ошибка соединения с сервером");
+      alert(t("serverError"));
     }
   };
 
-  const filteredStations = stations
-    .filter((s) =>
-      filterMode === "nearest"
-        ? true
-        : s.prices?.some((p) => p.price && p.price !== "—"),
-    )
-    .sort((a, b) =>
-      filterMode === "nearest" ? (a.distance || 0) - (b.distance || 0) : 0,
-    );
-
-  return (
-    <div 
+  const sidebarContent = (
+    <div
       ref={sidebarRef}
-      className={`fixed bottom-0 left-0 right-0 md:top-20 md:right-4 md:left-auto md:bottom-24 md:w-96 ${
-        isExpanded 
-          ? 'h-full md:h-full' 
-          : 'h-[50vh] md:h-auto md:max-h-[80vh]'
-      } flex flex-col bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.2)] md:shadow-2xl z-[1001] rounded-t-[2.5rem] md:rounded-3xl border border-gray-100 transition-all duration-300`}
-      style={{ 
-        transform: getTransform(),
-        touchAction: isDragging ? 'none' : 'auto' // Предотвращаем скролл во время перетаскивания
+      className={`fixed bottom-0 left-0 right-0 md:top-20 md:right-4 md:left-auto md:bottom-24 md:w-96 transition-all duration-300 dark:bg-slate-900 dark:text-white ${
+        isHidden
+          ? "translate-y-full opacity-0 pointer-events-none"
+          : isExpanded
+            ? "h-[calc(100vh-4rem)] md:h-[calc(100vh-5rem)]"
+            : "h-[50vh] md:h-auto md:max-h-[80vh]"
+      } flex flex-col shadow-[0_-10px_40px_var(--shadow-color)] md:shadow-2xl z-[1001] rounded-t-[2.5rem] md:rounded-3xl`}
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        borderColor: "var(--border-color)",
+        transform: isHidden ? "translateY(100%)" : getTransform(),
+        touchAction: isDragging ? "none" : "auto",
       }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onDoubleClick={handleDoubleClick}
     >
-      <div className="flex justify-center py-3 md:hidden bg-white rounded-t-[2.5rem] cursor-grab active:cursor-grabbing">
-        <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
+      <div
+        className="flex justify-center py-3 md:hidden rounded-t-[2.5rem] cursor-grab active:cursor-grabbing"
+        style={{ backgroundColor: "var(--bg-primary)" }}
+      >
+        <div
+          className="w-12 h-1.5 rounded-full"
+          style={{ backgroundColor: "var(--border-color)" }}
+        ></div>
       </div>
 
-      <div className="px-6 py-2 bg-white z-10 border-b border-gray-50 md:rounded-t-3xl">
+      <div
+        className="px-6 py-2 z-10 border-b md:rounded-t-3xl"
+        style={{
+          backgroundColor: "var(--bg-primary)",
+          borderColor: "var(--border-color)",
+        }}
+      >
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
           {["nearest", "withPrices"].map((mode) => (
             <button
@@ -204,19 +201,23 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                   : "bg-gray-100 text-gray-500 hover:bg-gray-200"
               }`}
             >
-              {mode === "nearest" ? "📍 Рядом" : "💰 С ценами"}
+              {t(mode)}
             </button>
           ))}
         </div>
       </div>
 
+      <StationSearch
+        stations={stations}
+        onFilterChange={setSearchFilteredStations}
+        onStationSelect={onPointClick}
+      />
+
       <div
         ref={scrollContainerRef}
-        className={`flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar ${
-          isExpanded ? 'pb-4' : 'pb-20 md:pb-4'
-        }`}
+        className={`flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar ${isExpanded ? "pb-4" : "pb-20 md:pb-4"}`}
       >
-        {filteredStations.map((station) => {
+        {searchFilteredStations.map((station) => {
           const isSelected = selectedPoint?.id === station.id;
           return (
             <div
@@ -262,14 +263,12 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
 
               {isSelected && (
                 <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-in fade-in zoom-in duration-300">
-                  {/* БЕЙДЖ С РОЛЬЮ ПОЛЬЗОВАТЕЛЯ */}
                   <div
                     className={`px-3 py-2 rounded-xl text-xs font-bold text-center ${roleConfig.color}`}
                   >
-                    {roleConfig.label}
+                    {t(roleConfig.labelKey)}
                   </div>
 
-                  {/* КНОПКА ОБНОВЛЕНИЯ ЦЕНЫ С ПРОВЕРКОЙ ДОСТУПА */}
                   {user && canUpdatePrice(station.id) ? (
                     <button
                       onClick={(e) => {
@@ -278,8 +277,8 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                       }}
                       className="w-full py-4 bg-blue-600 text-white text-[10px] font-black rounded-2xl shadow-lg hover:bg-blue-700 transition-all active:scale-95"
                     >
-                      📸 ОБНОВИТЬ ЦЕНЫ
-                      {currentRole === "user" && " (на модерации)"}
+                      {t("updatePrices")}
+                      {currentRole === "user" && ` ${t("onModeration")}`}
                     </button>
                   ) : currentRole === "guest" ? (
                     <button
@@ -289,12 +288,12 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                       }}
                       className="w-full py-4 bg-gray-300 text-gray-600 text-[10px] font-black rounded-2xl shadow-lg cursor-not-allowed"
                     >
-                      🔒 ВОЙДИТЕ ДЛЯ ОБНОВЛЕНИЯ
+                      {t("loginToUpdate")}
                     </button>
                   ) : currentRole === "station_owner" &&
                     !canUpdatePrice(station.id) ? (
                     <div className="w-full py-4 bg-orange-100 text-orange-700 text-[10px] font-black rounded-2xl text-center">
-                      ⚠️ ЭТА СТАНЦИЯ НЕ ВАША
+                      {t("notYourStation")}
                     </div>
                   ) : null}
 
@@ -323,6 +322,31 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
         })}
       </div>
     </div>
+  );
+
+  return (
+    <>
+      {sidebarContent}
+      {isHidden && (
+        <button
+          onClick={() => setIsHidden(false)}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[1002] px-6 py-3 rounded-full shadow-lg transition-all active:scale-95 md:hidden"
+          style={{
+            backgroundColor: "var(--accent-color)",
+            color: "var(--bg-primary)",
+            boxShadow: "0 10px 25px var(--shadow-color)",
+          }}
+          onMouseEnter={(e) =>
+            (e.target.style.backgroundColor = "var(--accent-hover)")
+          }
+          onMouseLeave={(e) =>
+            (e.target.style.backgroundColor = "var(--accent-color)")
+          }
+        >
+          {t("showStations")}
+        </button>
+      )}
+    </>
   );
 };
 

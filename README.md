@@ -69,6 +69,7 @@ This project uses Firebase for authentication and requires API keys. **Never com
 #### Frontend Environment Variables
 
 1. Copy `.env.example` to `.env`:
+
    ```bash
    cp .env.example .env
    ```
@@ -86,6 +87,7 @@ This project uses Firebase for authentication and requires API keys. **Never com
 #### Backend Environment Variables
 
 1. Copy `backend/.env.example` to `backend/.env`:
+
    ```bash
    cp backend/.env.example backend/.env
    ```

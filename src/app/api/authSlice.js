@@ -1,6 +1,5 @@
 import { createSlice } from "@reduxjs/toolkit";
 import { apiSlice } from "./apiSlice";
-import { onAuthStateChange, firebaseLogout } from "./firebaseAuth";
 
 const initialState = {
   user: null,
@@ -8,46 +7,45 @@ const initialState = {
   isLoading: false,
   error: null,
   isAuthenticated: false,
+  isInitialized: false, // ← новое: защита от гонки при загрузке
+  isAuthLoading: true, // ← новое: для предотвращения мерцания UI
 };
 
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    // Установить пользователя из Firebase
     setUser(state, action) {
       state.user = action.payload.user;
       state.idToken = action.payload.idToken;
       state.isAuthenticated = true;
+      state.isInitialized = true;
       state.error = null;
     },
-
-    // Выход
     logout(state) {
       state.user = null;
       state.idToken = null;
       state.isAuthenticated = false;
+      state.isInitialized = true;
       state.error = null;
     },
-
-    // Очистить ошибку
+    setInitialized(state) {
+      state.isInitialized = true;
+    },
     clearError(state) {
       state.error = null;
     },
-
-    // Установить ошибку
     setError(state, action) {
       state.error = action.payload;
     },
-
-    // Загрузка
     setLoading(state, action) {
       state.isLoading = action.payload;
     },
+    setAuthLoaded(state, action) {
+      state.isAuthLoading = action.payload;
+    },
   },
-
   extraReducers: (builder) => {
-    // Get Profile
     builder.addMatcher(
       apiSlice.endpoints.getProfile.matchFulfilled,
       (state, action) => {
@@ -57,22 +55,31 @@ const authSlice = createSlice({
   },
 });
 
-export const { setTokens, setUser, logout, clearError, setError } =
-  authSlice.actions;
+export const {
+  setUser,
+  logout,
+  setInitialized,
+  clearError,
+  setError,
+  setLoading,
+  setAuthLoaded,
+} = authSlice.actions;
 
 // SELECTORS
 export const selectCurrentUser = (state) => state.auth.user;
-export const selectAccessToken = (state) => state.auth.accessToken;
-export const selectRefreshToken = (state) => state.auth.refreshToken;
+export const selectCurrentToken = (state) => state.auth.idToken; // ← был missing — это и вызывало редирект
+export const selectAccessToken = (state) => state.auth.idToken;
 export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
+export const selectIsInitialized = (state) => state.auth.isInitialized;
 export const selectAuthError = (state) => state.auth.error;
-
-// DERIVED SELECTORS
-export const selectUserRole = (state) => state.auth.user?.role || "guest";
-export const selectManagedStations = (state) =>
-  state.auth.user?.managed_stations || [];
-export const selectIsAdmin = (state) => state.auth.user?.role === "admin";
+export const selectIsAuthLoading = (state) => state.auth.isAuthLoading;
+export const selectUserRole = (state) =>
+  state.auth.user?.role || (state.auth.user?.is_admin ? "admin" : "guest");
+export const selectIsAdmin = (state) =>
+  state.auth.user?.role === "admin" || state.auth.user?.is_admin === true;
 export const selectIsStationOwner = (state) =>
   state.auth.user?.role === "station_owner";
+export const selectManagedStations = (state) =>
+  state.auth.user?.managed_stations || [];
 
 export default authSlice.reducer;

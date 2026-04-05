@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const BRAND_PRESETS = {
   Lukoil: [
@@ -39,6 +40,7 @@ const BRAND_PRESETS = {
 const AddStationPhoto = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const queryParams = new URLSearchParams(location.search);
   const stationId = queryParams.get("id");
 
@@ -52,7 +54,7 @@ const AddStationPhoto = () => {
 
   const handleAIParse = () => {
     if (!selectedBrand) {
-      alert("Сначала выберите бренд в списке ниже!");
+      alert(t("selectBrandFirst"));
       return;
     }
     setLoading(true);
@@ -61,9 +63,7 @@ const AddStationPhoto = () => {
       const brandFields = BRAND_PRESETS[selectedBrand] || [];
       const updatedPrices = {};
       brandFields.forEach((field, index) => {
-        if (detectedRaw[index]) {
-          updatedPrices[field.id] = detectedRaw[index];
-        }
+        if (detectedRaw[index]) updatedPrices[field.id] = detectedRaw[index];
       });
       setPrices(updatedPrices);
       setLoading(false);
@@ -73,15 +73,14 @@ const AddStationPhoto = () => {
 
   const handlePriceChange = (id, value) => {
     let val = value.replace(/[^\d.]/g, "");
-    if (val.length === 3 && !val.includes(".")) {
+    if (val.length === 3 && !val.includes("."))
       val = (parseInt(val) / 100).toFixed(2);
-    }
     setPrices({ ...prices, [id]: val });
   };
 
   const handleSubmit = async () => {
     if (!stationId) {
-      alert("Ошибка: Станция не выбрана. Вернитесь на карту.");
+      alert(t("stationNotSelected"));
       return;
     }
     setLoading(true);
@@ -89,17 +88,14 @@ const AddStationPhoto = () => {
       const res = await fetch("http://127.0.0.1:8001/api/update-price-manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          station_id: parseInt(stationId),
-          prices: prices,
-        }),
+        body: JSON.stringify({ station_id: parseInt(stationId), prices }),
       });
       if (res.ok) {
-        alert("Цены успешно обновлены!");
+        alert(t("pricesUpdated"));
         navigate("/");
       }
     } catch (e) {
-      alert("Ошибка сохранения");
+      alert(t("savingError"));
     } finally {
       setLoading(false);
     }
@@ -107,40 +103,35 @@ const AddStationPhoto = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center p-4 font-sans text-slate-900">
-      {/* ИНДИКАТОР ВЫБРАННОЙ СТАНЦИИ */}
       <div className="w-full max-w-md bg-white/10 backdrop-blur-md p-3 rounded-2xl mb-4 border border-white/10 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div
             className={`w-3 h-3 rounded-full ${stationId ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
           ></div>
           <span className="text-white font-bold text-sm">
-            {stationId ? `СТАНЦИЯ #${stationId}` : "СТАНЦИЯ НЕ ВЫБРАНА"}
+            {stationId ? t("stationNum", { id: stationId }) : t("noStation")}
           </span>
         </div>
         <button
           onClick={() => navigate("/")}
           className="text-[10px] bg-white/20 text-white px-3 py-1 rounded-lg font-black uppercase tracking-tighter hover:bg-white/30 transition-colors"
         >
-          Карта 🗺️
+          {t("map")} 🗺️
         </button>
       </div>
 
       <div className="w-full max-w-md">
-        {/* Шаг 1: Загрузка */}
         {step === 1 && (
           <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl text-center border border-white/20">
             <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
               <span className="text-3xl">⛽</span>
             </div>
             <h2 className="text-2xl font-black mb-2 uppercase tracking-tight">
-              Обновить цены
+              {t("updatePrice")}
             </h2>
             <p className="text-gray-400 text-sm mb-8">
-              {stationId
-                ? "Загрузите фото табло для этой заправки"
-                : "Сначала выберите заправку на карте, затем загрузите фото"}
+              {stationId ? t("uploadPhotoDesc") : t("selectFirst")}
             </p>
-
             <input
               type="file"
               accept="image/*"
@@ -157,24 +148,23 @@ const AddStationPhoto = () => {
               htmlFor="upload"
               className="bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-2xl block font-bold shadow-lg cursor-pointer transition-all active:scale-95"
             >
-              📸 СДЕЛАТЬ ФОТО
+              {t("takePhoto")}
             </label>
           </div>
         )}
 
-        {/* Шаг 2: Бренд и ИИ */}
         {step === 2 && (
           <div className="space-y-4 animate-in fade-in duration-300">
             <div className="bg-white p-5 rounded-3xl shadow-md border-2 border-blue-500">
               <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">
-                Проверьте бренд сети
+                {t("checkBrand")}
               </p>
               <select
                 className="w-full text-lg font-black outline-none bg-transparent cursor-pointer"
                 value={selectedBrand}
                 onChange={(e) => setSelectedBrand(e.target.value)}
               >
-                <option value="">-- ВЫБРАТЬ СЕТЬ --</option>
+                <option value="">{t("selectNetwork")}</option>
                 {Object.keys(BRAND_PRESETS).map((b) => (
                   <option key={b} value={b}>
                     {b}
@@ -182,7 +172,6 @@ const AddStationPhoto = () => {
                 ))}
               </select>
             </div>
-
             <div className="bg-white p-4 rounded-[2rem] shadow-xl">
               <img
                 src={selectedImage}
@@ -194,30 +183,28 @@ const AddStationPhoto = () => {
                 disabled={loading}
                 className="w-full py-5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 disabled:bg-gray-300"
               >
-                {loading ? "⌛ ОБРАБОТКА..." : "🤖 ЗАПУСТИТЬ ИИ-СКАНЕР"}
+                {loading ? t("processing") : t("runAI")}
               </button>
               <button
                 onClick={() => setStep(3)}
                 className="w-full mt-4 text-gray-400 font-bold text-sm uppercase tracking-widest"
               >
-                Ввести вручную →
+                {t("enterManually")}
               </button>
             </div>
           </div>
         )}
 
-        {/* Шаг 3: Сохранение */}
         {step === 3 && (
           <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-300">
             <div className="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center border-l-4 border-blue-500">
               <span className="font-black uppercase text-gray-400 text-[10px]">
-                Текущая сеть:
+                {t("currentNetwork")}
               </span>
               <span className="font-black uppercase text-blue-600">
-                {selectedBrand || "Не выбрана"}
+                {selectedBrand || t("notSelected")}
               </span>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               {(BRAND_PRESETS[selectedBrand] || []).map((f) => (
                 <div
@@ -238,20 +225,19 @@ const AddStationPhoto = () => {
                 </div>
               ))}
             </div>
-
             <div className="pt-4">
               <button
                 onClick={handleSubmit}
                 disabled={loading}
                 className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white rounded-[2rem] font-black text-xl shadow-xl active:scale-95 transition-all disabled:bg-gray-400"
               >
-                {loading ? "СОХРАНЕНИЕ..." : "ОТПРАВИТЬ ДАННЫЕ"}
+                {loading ? t("saving") : t("submitData")}
               </button>
               <button
                 onClick={() => setStep(1)}
                 className="w-full mt-4 text-gray-400 font-bold uppercase text-xs tracking-widest"
               >
-                ← Начать заново
+                {t("startOver")}
               </button>
             </div>
           </div>

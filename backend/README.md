@@ -3,6 +3,7 @@
 This folder contains a minimal FastAPI backend to support the Cheap Gasoline frontend.
 
 Features
+
 - SQLite or PostgreSQL persistence for stations and price updates (SQLModel)
 - Endpoints:
   - GET /api/stations — list stations
@@ -14,6 +15,7 @@ Features
   - POST /api/upload-photo — upload image, run OCR, return parsed text and price candidates
 
 Requirements
+
 - Python 3.10+
 - Tesseract OCR binary installed on the host system (Windows: install from https://github.com/UB-Mannheim/tesseract/wiki)
 - PostgreSQL 12+ (optional; defaults to SQLite if not configured)
@@ -23,16 +25,19 @@ Database Setup
 By default, the backend uses SQLite. To use PostgreSQL instead:
 
 1. Ensure PostgreSQL is running and you have a database created:
+
 ```sql
 CREATE DATABASE cheap_gasoline;
 ```
 
 2. Set the environment variable before running the backend:
+
 ```powershell
 $env:BACKEND_DATABASE_URL = "postgresql://postgres:PASSWORD@localhost:5432/cheap_gasoline"
 ```
 
 Or pass it directly in the command:
+
 ```powershell
 $env:BACKEND_DATABASE_URL = "postgresql://postgres:PASSWORD@localhost:5432/cheap_gasoline"; python -m uvicorn backend.main:app --reload
 ```
@@ -63,11 +68,13 @@ npm run backend:dev
 ```
 
 Or use npm scripts from project root (already configured):
+
 ```powershell
 npm run backend:dev
 ```
 
 Notes
+
 - The OCR relies on the Tesseract binary. If pytesseract raises errors about the tesseract command not found, install the binary and ensure its path is on PATH.
 - Uploaded images are stored in `backend/uploads/` by default.
 - Auth tokens are JWT and expire after 1 week. Tokens are stored in the frontend's Redux store and localStorage.

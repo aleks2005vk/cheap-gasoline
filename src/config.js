@@ -5,8 +5,8 @@ export const API_URL =
   window.location.hostname === "127.0.0.1"
     ? "http://localhost:8001"
     : window.location.hostname === "192.168.1.31"
-    ? "http://192.168.1.31:8001"
-    : "https://cheap-gasoline.onrender.com");
+      ? "http://192.168.1.31:8001"
+      : "https://cheap-gasoline.onrender.com");
 
 // Firebase configuration
 export const firebaseConfig = {

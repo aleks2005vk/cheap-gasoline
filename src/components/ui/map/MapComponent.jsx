@@ -1,13 +1,12 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "leaflet.markercluster/dist/MarkerCluster.css";
-import "leaflet.markercluster/dist/MarkerCluster.Default.css";
-import "leaflet.markercluster";
+import useSupercluster from "use-supercluster";
 import MapSidebar from "./MapSidebar";
 import Footer from "../Footer/Footer";
 // ИМПОРТ КОНФИГА
 import { API_URL } from "../../../config";
+import { useGetPointsQuery } from "../../../app/api/apiSlice";
 
 const createCustomIcon = (isSelected = false) => {
   const size = isSelected ? 40 : 32;
@@ -42,9 +41,77 @@ const MapComponent = () => {
   const mapRef = useRef(null);
   const markersRef = useRef(null);
   const locationMarkerRef = useRef(null);
-  const [stations, setStations] = useState([]);
   const [selectedPoint, setSelectedPoint] = useState(null);
-  const [loadError, setLoadError] = useState("");
+  const [bounds, setBounds] = useState(null);
+  const [zoom, setZoom] = useState(13);
+
+  const { data: stations = [] } = useGetPointsQuery();
+
+  const points = useMemo(
+    () =>
+      stations.map((station) => ({
+        type: "Feature",
+        properties: {
+          cluster: false,
+          stationId: station.id,
+          category: "station",
+          ...station,
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [station.lng, station.lat],
+        },
+      })),
+    [stations]
+  );
+
+  const { clusters } = useSupercluster({
+    points,
+    bounds,
+    zoom,
+    options: { radius: 75, maxZoom: 20 },
+  });
+
+  // Render clusters on map
+  useEffect(() => {
+    if (!mapRef.current || !clusters) return;
+
+    // Clear existing markers
+    mapRef.current.eachLayer((layer) => {
+      if (layer instanceof L.Marker) {
+        mapRef.current.removeLayer(layer);
+      }
+    });
+
+    // Add cluster markers
+    clusters.forEach((cluster) => {
+      const [lng, lat] = cluster.geometry.coordinates;
+      const { cluster: isCluster, point_count } = cluster.properties;
+
+      let marker;
+      if (isCluster) {
+        // Cluster marker
+        marker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            html: `<div class="cluster-icon">${point_count}</div>`,
+            className: "custom-cluster",
+            iconSize: [44, 44],
+          }),
+        });
+      } else {
+        // Individual point marker
+        const isSelected = selectedPoint?.id === cluster.properties.stationId;
+        marker = L.marker([lat, lng], {
+          icon: createCustomIcon(isSelected),
+        }).on("click", () => {
+          setSelectedPoint(cluster.properties);
+          mapRef.current.flyTo([lat, lng], 16);
+        });
+      }
+
+      marker.addTo(mapRef.current);
+    });
+  }, [clusters, selectedPoint]);
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -61,41 +128,23 @@ const MapComponent = () => {
       },
     ).addTo(map);
 
-    markersRef.current = L.markerClusterGroup({
-      showCoverageOnHover: false,
-      maxClusterRadius: 50,
-      iconCreateFunction: (cluster) => {
-        const count = cluster.getChildCount();
-        return L.divIcon({
-          html: `<div class="cluster-icon">${count}</div>`,
-          className: "custom-cluster",
-          iconSize: [44, 44],
-        });
-      },
-    });
-    map.addLayer(markersRef.current);
     mapRef.current = map;
 
-    // ИСПОЛЬЗУЕМ API_URL ИЗ КОНФИГА
-    console.log("Загрузка станций с:", `${API_URL}/api/stations`);
-    fetch(`${API_URL}/api/stations?t=${Date.now()}`)
-      .then((res) => {
-        console.log("Ответ API:", res.status, res.statusText);
-        if (!res.ok) {
-          throw new Error(`Ошибка API: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        console.log("Получены станции:", data.length);
-        setStations(data);
-      })
-      .catch((err) => {
-        console.error("Ошибка загрузки АЗС:", err);
-        setLoadError(
-          "Не удалось загрузить станции. Проверьте, запущен ли бэкенд и правильно ли указан API_URL.",
-        );
-      });
+    // Update bounds and zoom on map events
+    const updateMapView = () => {
+      const mapBounds = map.getBounds();
+      setBounds([
+        mapBounds.getWest(),
+        mapBounds.getSouth(),
+        mapBounds.getEast(),
+        mapBounds.getNorth(),
+      ]);
+      setZoom(map.getZoom());
+    };
+
+    map.on("moveend", updateMapView);
+    map.on("zoomend", updateMapView);
+    updateMapView(); // Initial call
 
     map.on("locationfound", (e) => {
       const { lat, lng } = e.latlng;
@@ -111,14 +160,20 @@ const MapComponent = () => {
 
   useEffect(() => {
     if (!markersRef.current || !stations.length) {
-      console.log("Маркеры не создаются: markersRef =", !!markersRef.current, "stations.length =", stations.length);
+      console.log(
+        "Маркеры не создаются: markersRef =",
+        !!markersRef.current,
+        "stations.length =",
+        stations.length,
+      );
       return;
     }
     console.log("Создание маркеров для", stations.length, "станций");
     markersRef.current.clearLayers();
 
     stations.forEach((s, index) => {
-      if (index < 5) console.log("Создание маркера для станции:", s.name, s.lat, s.lng);
+      if (index < 5)
+        console.log("Создание маркера для станции:", s.name, s.lat, s.lng);
       const marker = L.marker([s.lat, s.lng], {
         icon: createCustomIcon(selectedPoint?.id === s.id),
       });
@@ -177,13 +232,6 @@ const MapComponent = () => {
         }
         .no-scrollbar::-webkit-scrollbar { display: none; }
       `}</style>
-
-      {loadError && (
-        <div className="absolute top-4 left-4 right-4 z-30 rounded-3xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100 backdrop-blur-xl shadow-lg shadow-red-900/10">
-          <strong className="block font-bold">Ошибка сервера</strong>
-          <p className="mt-1 text-xs leading-5">{loadError}</p>
-        </div>
-      )}
       <div id="map" className="absolute inset-0 z-0 w-full h-full" />
 
       <button
@@ -200,7 +248,6 @@ const MapComponent = () => {
           setSelectedPoint(s);
           mapRef.current.flyTo([s.lat, s.lng], 16);
         }}
-        setStations={setStations}
       />
 
       <div className="absolute bottom-0 left-0 right-0 z-[2000]">

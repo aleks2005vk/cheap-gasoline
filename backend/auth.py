@@ -27,14 +27,17 @@ security = HTTPBearer()
 # ============ FIREBASE AUTH ============
 
 async def get_current_user(credentials = Depends(security)) -> Dict:
-    """Получить текущего пользователя из Firebase ID token"""
+    """Получить текущего пользователя из Firebase ID token с Custom Claims"""
     token = credentials.credentials
     try:
         decoded_token = auth.verify_id_token(token)
         firebase_uid = decoded_token['uid']
         email = decoded_token.get('email', '')
 
-        # Найти пользователя в локальной БД по email
+        # Получить роль из Firebase Custom Claims
+        user_role = decoded_token.get('role', 'user')  # По умолчанию 'user'
+
+        # Найти пользователя в локальной БД по email для дополнительных данных
         from models import User
         from database import get_session
         db = next(get_session())
@@ -49,8 +52,10 @@ async def get_current_user(credentials = Depends(security)) -> Dict:
 
         return {
             "user_id": user.id,
-            "role": user.role,
-            "firebase_uid": firebase_uid
+            "role": user_role,  # Используем роль из Firebase Custom Claims
+            "firebase_uid": firebase_uid,
+            "email": email,
+            "name": user.name
         }
 
     except Exception as e:
@@ -238,7 +243,98 @@ def rate_limit_dependency(max_requests: int = 10, window_seconds: int = 60):
                 status_code=429,
                 detail="Too many requests"
             )
-        
-        return True
-    
-    return verify_rate_limit
+
+
+# ============ ROLE MANAGEMENT ============
+
+async def set_user_role(firebase_uid: str, role: str, current_user: Dict = Depends(get_current_user)):
+    """
+    Установить роль пользователю через Firebase Custom Claims
+    Только админы могут менять роли
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can change user roles")
+
+    try:
+        # Валидация роли
+        valid_roles = ["admin", "moderator", "station_owner", "user", "guest"]
+        if role not in valid_roles:
+            raise HTTPException(status_code=400, detail=f"Invalid role. Valid roles: {', '.join(valid_roles)}")
+
+        # Установить Custom Claims
+        auth.set_custom_user_claims(firebase_uid, {"role": role})
+
+        return {"message": f"Role '{role}' assigned to user {firebase_uid}"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set user role: {str(e)}")
+
+
+async def get_user_role(firebase_uid: str, current_user: Dict = Depends(get_current_user)):
+    """
+    Получить роль пользователя из Firebase Custom Claims
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view user roles")
+
+    try:
+        # Получить информацию о пользователе
+        user = auth.get_user(firebase_uid)
+        custom_claims = user.custom_claims or {}
+
+        return {
+            "firebase_uid": firebase_uid,
+            "email": user.email,
+            "role": custom_claims.get("role", "user"),
+            "custom_claims": custom_claims
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"User not found: {str(e)}")
+
+
+async def list_users_with_roles(current_user: Dict = Depends(get_current_user)):
+    """
+    Получить список всех пользователей с их ролями
+    Только для админов
+    """
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can list users")
+
+    try:
+        # Получить всех пользователей (с пагинацией для больших списков)
+        users = []
+        page = auth.list_users()
+
+        for user in page.iterate_all():
+            custom_claims = user.custom_claims or {}
+            users.append({
+                "firebase_uid": user.uid,
+                "email": user.email,
+                "display_name": user.display_name,
+                "role": custom_claims.get("role", "user"),
+                "email_verified": user.email_verified,
+                "disabled": user.disabled,
+                "created_at": user.user_metadata.creation_timestamp,
+                "last_sign_in": user.user_metadata.last_sign_in_timestamp
+            })
+
+        return {"users": users, "total": len(users)}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list users: {str(e)}")
+
+
+def require_admin(current_user: Dict = Depends(get_current_user)):
+    """Декоратор: требование админской роли"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
+def require_moderator(current_user: Dict = Depends(get_current_user)):
+    """Декоратор: требование роли модератора или выше"""
+    user_role = current_user.get("role", "guest")
+    if user_role not in ["admin", "moderator"]:
+        raise HTTPException(status_code=403, detail="Moderator access required")
+    return current_user

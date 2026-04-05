@@ -25,7 +25,7 @@ from models import (
 )
 from auth import (
     get_current_user, require_permission_dependency,
-    rate_limiter, security
+    rate_limiter, security, require_admin
 )
 
 
@@ -50,10 +50,12 @@ app.add_middleware(
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
+        "http://localhost:5180",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://127.0.0.1:5175",
+        "http://127.0.0.1:5180",
         "http://192.168.1.31:3000",
         "http://192.168.1.31:5173",
         "http://192.168.1.31:5174",
@@ -825,9 +827,78 @@ def ban_user(
     return {"status": "success", "message": f"Пользователь заблокирован"}
 
 
+# ============ ROLE MANAGEMENT ENDPOINTS ============
+
+@app.post("/api/admin/set-user-role")
+async def set_user_role_endpoint(
+    firebase_uid: str,
+    role: str,
+    current_user: Dict = Depends(require_admin)
+):
+    """
+    Установить роль пользователю через Firebase Custom Claims
+    Только для админов
+    """
+    from auth import set_user_role
+    return await set_user_role(firebase_uid, role, current_user)
+
+
+@app.get("/api/admin/user-role/{firebase_uid}")
+async def get_user_role_endpoint(
+    firebase_uid: str,
+    current_user: Dict = Depends(require_admin)
+):
+    """
+    Получить роль пользователя из Firebase Custom Claims
+    Только для админов
+    """
+    from auth import get_user_role
+    return await get_user_role(firebase_uid, current_user)
+
+
+@app.get("/api/admin/users-with-roles")
+async def list_users_with_roles_endpoint(
+    current_user: Dict = Depends(require_admin)
+):
+    """
+    Получить список всех пользователей с их ролями из Firebase
+    Только для админов
+    """
+    from auth import list_users_with_roles
+    return await list_users_with_roles(current_user)
+
+
+@app.post("/api/admin/create-admin")
+async def create_admin_endpoint(
+    email: str,
+    current_user: Dict = Depends(require_admin)
+):
+    """
+    Создать нового админа (установить роль admin)
+    Сначала нужно создать пользователя в Firebase Console
+    """
+    try:
+        # Найти пользователя по email
+        from firebase_admin import auth
+        user = auth.get_user_by_email(email)
+        firebase_uid = user.uid
+
+        # Установить роль admin
+        from auth import set_user_role
+        result = await set_user_role(firebase_uid, "admin", current_user)
+
+        return {
+            "message": f"Пользователь {email} назначен админом",
+            "firebase_uid": firebase_uid
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Не удалось создать админа: {str(e)}")
+
+
 @app.get("/")
 def read_root():
-    return {"status": "online", "message": "Gasoline API v1.5 (с RBAC)"}
+    return {"status": "online", "message": "Gasoline API v1.5 (с Firebase RBAC)"}
 
 
 if __name__ == "__main__":
