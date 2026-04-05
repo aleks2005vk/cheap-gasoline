@@ -1,550 +1,836 @@
+"""
+Cheap Gasoline API - FastAPI Backend
+v1.0: Authentication, User Profiles, Roles
+v1.5: Price History, Best Price Finder
+"""
+
 import json
-import datetime
 import os
-from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, status
+import math
+from datetime import datetime, timedelta
+from typing import Optional, List, Dict, Any
+
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordBearer
-from fastapi.responses import FileResponse
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
-from sqlalchemy.orm import sessionmaker, Session, relationship
-from sqlalchemy.ext.declarative import declarative_base
-from pydantic import BaseModel
-from typing import Dict, List, Optional, Any
-import auth_utils
+from pydantic import BaseModel, validator
+from sqlmodel import Session, select, func, SQLModel
 
-# --- НАСТРОЙКИ БАЗ (ОТДЕЛЬНЫЕ ФАЙЛЫ) ---
-# Каждая БД в отдельном файле для изоляции данных
-USERS_DB_URL = "sqlite:///./data/users.db"
-STATIONS_DB_URL = "sqlite:///./data/stations.db"
-PRICES_DB_URL = "sqlite:///./data/prices.db"
-SITEINFO_DB_URL = "sqlite:///./data/site_info.db"
+# Локальные импорты
+from database import init_db, get_session
+from models import (
+    User, UserProfile, Station, PriceUpdate, 
+    ContributionHistory, PriceConfirmation, FlaggedPrice,
+    RolePermission, AuditLog, PriceHistory, Achievement, UserAchievement,
+    UserStation
+)
+from auth import (
+    get_current_user, require_permission_dependency,
+    rate_limiter, security
+)
 
-# Создание папки data если её нет
-os.makedirs("data", exist_ok=True)
 
-# --- USERS DATABASE ---
-users_engine = create_engine(USERS_DB_URL, connect_args={"check_same_thread": False})
-UsersSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=users_engine)
-UsersBase = declarative_base()
+# ============ ИНИЦИАЛИЗАЦИЯ ============
 
-class User(UsersBase):
-    __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
-    name = Column(String, nullable=True)
-    hashed_password = Column(String)
-    is_admin = Column(Boolean, default=False)
-    role = Column(String, default="user")  # user, moderator, admin, superadmin
-    avatar_url = Column(String, nullable=True)
-    bio = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+# Создание папок
+os.makedirs("uploads", exist_ok=True)
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 
-UsersBase.metadata.create_all(bind=users_engine)
+# FastAPI app
+app = FastAPI(
+    title="Cheap Gasoline API",
+    version="1.5",
+    description="Сервис мониторинга цен на топливо"
+)
 
-# --- STATIONS DATABASE ---
-stations_engine = create_engine(STATIONS_DB_URL, connect_args={"check_same_thread": False})
-StationsSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=stations_engine)
-StationsBase = declarative_base()
-
-class Station(StationsBase):
-    __tablename__ = "station"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
-    brand = Column(String)
-    lat = Column(Float)
-    lng = Column(Float)
-    fuel_config = Column(String)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-StationsBase.metadata.create_all(bind=stations_engine)
-
-# --- PRICES DATABASE ---
-prices_engine = create_engine(PRICES_DB_URL, connect_args={"check_same_thread": False})
-PricesSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=prices_engine)
-PricesBase = declarative_base()
-
-class PriceUpdate(PricesBase):
-    __tablename__ = "priceupdate"
-    id = Column(Integer, primary_key=True, index=True)
-    station_id = Column(Integer, index=True)
-    user_id = Column(Integer, nullable=True)
-    fuel_type = Column(String)
-    price = Column(Float)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    source = Column(String, default="manual_update")
-
-PricesBase.metadata.create_all(bind=prices_engine)
-
-# --- SITE INFO DATABASE ---
-siteinfo_engine = create_engine(SITEINFO_DB_URL, connect_args={"check_same_thread": False})
-SiteInfoSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=siteinfo_engine)
-SiteInfoBase = declarative_base()
-
-class SiteInfo(SiteInfoBase):
-    __tablename__ = "site_info"
-    id = Column(Integer, primary_key=True, index=True)
-    key = Column(String, unique=True, index=True)
-    value = Column(String)
-    description = Column(String, nullable=True)
-    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
-
-class AuditLog(SiteInfoBase):
-    __tablename__ = "audit_log"
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, nullable=True, index=True)
-    action = Column(String)  # login, logout, user_created, role_changed, delete_user, etc.
-    target_user_id = Column(Integer, nullable=True)
-    details = Column(String, nullable=True)  # JSON details
-    ip_address = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
-
-SiteInfoBase.metadata.create_all(bind=siteinfo_engine)
-
-# --- OAUTH2 SCHEME ---
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
-
-def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
-    """Получить текущего пользователя из JWT токена"""
-    try:
-        payload = auth_utils.decode_access_token(token)
-        user_id = int(payload.get('sub'))
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid token')
-    db = UsersSessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='User not found')
-        return user
-    finally:
-        db.close()
-def sync_db_fuel_configs():
-    db = StationsSessionLocal()
-    configs = {
-        "SOCAR": [{"id": "n95", "label": "NANO 95"}, {"id": "n92", "label": "NANO 92"}, {"id": "diesel", "label": "NANO DT"}, {"id": "lpg", "label": "LPG"}],
-        "GULF": [{"id": "g98", "label": "G-Force 98"}, {"id": "g95", "label": "G-Force 95"}, {"id": "reg", "label": "Euro Reg"}, {"id": "diesel", "label": "G-Force D"}],
-        "WISSOL": [{"id": "eko_super", "label": "EKO SUPER"}, {"id": "eko_premium", "label": "EKO PREMIUM"}, {"id": "eko_regular", "label": "EKO REGULAR"}, {"id": "diesel", "label": "EKO DIESEL"}, {"id": "EUdiesel", "label": "EURO DIESEL"}],
-        "LUKOIL": [{"id": "ecto_100", "label": "100 ECTO"}, {"id": "ecto_95", "label": "95 ECTO"}, {"id": "ecto_92", "label": "92 ECTO"}, {"id": "diesel", "label": "D ECTO"}],
-        "ROMPETROL": [{"id": "efix_98", "label": "98 EFIX"}, {"id": "efix_95", "label": "95 EFIX"}, {"id": "efix_92", "label": "92 EFIX"}, {"id": "diesel", "label": "D EFIX"}, {"id": "LPDdiesel", "label": "LPD EFIX"}]
-    }
-    try:
-        stations = db.query(Station).all()
-        for s in stations:
-            brand_up = s.brand.upper() if s.brand else ""
-            if brand_up in configs:
-                s.fuel_config = json.dumps(configs[brand_up])
-        db.commit()
-    finally:
-        db.close()
-
-sync_db_fuel_configs()
-
-app = FastAPI(title="Cheap Gasoline Backend")
-
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://192.168.1.31:3000",
+        "http://192.168.1.31:5173",
+        "http://192.168.1.31:5174",
+        "http://192.168.1.31:5175",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
 
-# --- SETUP UPLOAD DIR ---
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# DB init
+try:
+    init_db()
+    print("✅ Database initialized")
+except Exception as e:
+    print(f"⚠️ Database init: {e}")
 
-# --- DEPENDENCY INJECTORS ---
-def get_users_db():
-    db = UsersSessionLocal()
-    try: yield db
-    finally: db.close()
 
-def get_stations_db():
-    db = StationsSessionLocal()
-    try: yield db
-    finally: db.close()
+# ============ PYDANTIC SCHEMAS ============
 
-def get_prices_db():
-    db = PricesSessionLocal()
-    try: yield db
-    finally: db.close()
-
-def get_siteinfo_db():
-    db = SiteInfoSessionLocal()
-    try: yield db
-    finally: db.close()
-
-# --- СХЕМЫ ---
-class ManualPriceUpdate(BaseModel):
-    station_id: int
-    prices: Dict[str, str]
-    user_id: Optional[int] = None
-
-class ResetPasswordData(BaseModel):
+class UserRegisterRequest(BaseModel):
+    """Запрос на регистрацию"""
     email: str
-    new_password: str
-
-# --- ЭНДПОИНТЫ ---
-
-@app.get("/api/stations")
-def get_stations(db: Session = Depends(get_stations_db)):
-    """Получить все станции с ценами и геоданными"""
-    stations = db.query(Station).all()
-    result = []
-    prices_db = PricesSessionLocal()
+    password: str
+    name: Optional[str] = None
     
-    try:
-        for s in stations:
-            f_config = json.loads(s.fuel_config or "[]")
-            prices_data = []
-            for fuel in f_config:
-                last_price = prices_db.query(PriceUpdate).filter(
-                    PriceUpdate.station_id == s.id, 
-                    PriceUpdate.fuel_type == fuel['id']
-                ).order_by(PriceUpdate.timestamp.desc()).first()
-                prices_data.append({
-                    "id": fuel['id'], 
-                    "type": fuel['label'], 
-                    "price": float(last_price.price) if last_price else None
-                })
-            
-            result.append({
-                "id": s.id,
-                "name": s.name,
-                "brand": s.brand,
-                "lat": float(s.lat),
-                "lng": float(s.lng),
-                "prices": prices_data
-            })
-    finally:
-        prices_db.close()
+    @validator('email')
+    def validate_email(cls, v):
+        if '@' not in v:
+            raise ValueError('Invalid email')
+        return v.lower()
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('Password min 6 chars')
+        return v
+
+
+class UserLoginRequest(BaseModel):
+    """Запрос на вход"""
+    email: str
+    password: str
+
+
+class PriceUpdateRequest(BaseModel):
+    """Обновление цены"""
+    station_id: int
+    fuel_type: str
+    price: float
+    
+    @validator('fuel_type')
+    def validate_fuel_type(cls, v):
+        allowed = ['92', '95', '98', 'diesel', 'lpg']
+        if v not in allowed:
+            raise ValueError(f'Fuel type one of {allowed}')
+        return v
+    
+    @validator('price')
+    def validate_price(cls, v):
+        if v <= 0 or v > 300:
+            raise ValueError('Price 0-300')
+        return v
+
+
+class LocationRequest(BaseModel):
+    """Поиск по координатам"""
+    latitude: float
+    longitude: float
+    radius_km: int = 5
+    
+    @validator('latitude')
+    def validate_lat(cls, v):
+        if not -90 <= v <= 90:
+            raise ValueError('Invalid lat')
+        return v
+    
+    @validator('longitude')
+    def validate_lng(cls, v):
+        if not -180 <= v <= 180:
+            raise ValueError('Invalid lng')
+        return v
+
+
+# ============ UTILITY ============
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Расстояние между точками (км)"""
+    R = 6371
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat/2)**2 + \
+        math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * \
+        math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    return R * c
+
+
+def log_audit(db: Session, user_id: Optional[int], action: str, 
+              target_id: Optional[int] = None, details: Optional[Dict] = None,
+              ip_address: Optional[str] = None):
+    """Логирование"""
+    audit = AuditLog(
+        user_id=user_id,
+        action=action,
+        target_id=target_id,
+        details=json.dumps(details) if details else None,
+        ip_address=ip_address
+    )
+    db.add(audit)
+
+
+# ============ HEALTH CHECK ============
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
+
+# ============ DEV: CREATE TEST USER ============
+
+@app.post("/api/dev/create-test-user")
+def create_test_user(db: Session = Depends(get_session)):
+    """
+    ТОЛЬКО для локальной разработки: создать тестового пользователя
+    Email: test@test.com
+    Password: test123456
+    """
+    # Проверяем, есть ли уже тестовый пользователь
+    existing = db.exec(select(User).where(User.email == "test@test.com")).first()
+    if existing:
+        return {"status": "info", "message": "Тестовый пользователь уже существует"}
+    
+    # Создаем тестового пользователя
+    test_user = User(
+        email="test@test.com",
+        name="Test User",
+        role="user",
+        is_active=True,
+        karma_points=50,
+        verification_score=75.0
+    )
+    db.add(test_user)
+    db.commit()
+    db.refresh(test_user)
+    
+    # Создаем профиль
+    profile = UserProfile(
+        user_id=test_user.id,
+        notifications_enabled=True
+    )
+    db.add(profile)
+    db.commit()
+    
+    return {
+        "status": "success",
+        "message": "Тестовый пользователь создан",
+        "email": "test@test.com",
+        "password": "test123456"
+    }
+
+
+# ============ AUTHENTICATION (Firebase) ============
+
+@app.post("/api/auth/create-user")
+def create_user_after_firebase(email: str, name: Optional[str] = None,
+                               db: Session = Depends(get_session)):
+    """Создать пользователя в локальной БД после Firebase-регистрации"""
+    existing = db.exec(select(User).where(User.email == email)).first()
+    if existing:
+        return {"status": "exists", "message": "User already exists"}
+
+    user = User(
+        email=email,
+        name=name or email.split('@')[0],
+        role="user"
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    profile = UserProfile(user_id=user.id)
+    db.add(profile)
+    log_audit(db, user.id, "user_created_via_firebase")
+    db.commit()
+
+    return {"status": "success", "user_id": user.id}
+
+
+# ============ USER PROFILE ============
+
+@app.get("/api/user/profile")
+def get_user_profile(current_user: Dict = Depends(get_current_user),
+                     db: Session = Depends(get_session)):
+    """Профиль пользователя"""
+    user = db.get(User, current_user["user_id"])
+    if not user:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    profile = db.exec(select(UserProfile).where(UserProfile.user_id == user.id)).first()
+    
+    return {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "avatar": user.avatar,
+        "role": user.role,
+        "karma_points": user.karma_points,
+        "verification_score": user.verification_score,
+        "total_updates": user.total_updates,
+        "confirmed_updates": user.confirmed_updates,
+        "created_at": user.created_at,
+        "profile": {
+            "favorite_fuel_types": json.loads(profile.favorite_fuel_types) if profile else [],
+            "favorite_station_ids": json.loads(profile.favorite_station_ids) if profile else [],
+            "notification_radius_km": profile.notification_radius_km if profile else 5,
+        }
+    }
+
+
+@app.get("/api/user/contributions")
+def get_contributions(current_user: Dict = Depends(get_current_user),
+                     skip: int = 0, limit: int = 20,
+                     db: Session = Depends(get_session)):
+    """История вкладов"""
+    contributions = db.exec(
+        select(ContributionHistory)
+        .where(ContributionHistory.user_id == current_user["user_id"])
+        .order_by(ContributionHistory.created_at.desc())
+        .offset(skip).limit(limit)
+    ).all()
+    
+    result = []
+    for c in contributions:
+        station = db.get(Station, c.station_id)
+        result.append({
+            "id": c.id,
+            "station_id": c.station_id,
+            "station_name": station.name if station else "?",
+            "fuel_type": c.fuel_type,
+            "old_price": c.old_price,
+            "new_price": c.new_price,
+            "status": c.status,
+            "confirmations": c.confirmation_count,
+            "created_at": c.created_at
+        })
     
     return result
 
-@app.post("/api/auth/register")
-async def auth_register(user_data: Dict[str, str], db: Session = Depends(get_users_db)):
-    email = user_data.get("email")
-    password = user_data.get("password")
-    name = user_data.get("name", "User")
+
+# ============ PRICES ============
+
+@app.post("/api/price/update")
+def update_price(data: PriceUpdateRequest,
+                current_user: Dict = Depends(get_current_user),
+                request: Request = None,
+                db: Session = Depends(get_session)):
+    """Обновить цену"""
     
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Укажите email и пароль")
-    
-    if db.query(User).filter(User.email == email).first():
-        raise HTTPException(status_code=400, detail="Этот email уже зарегистрирован")
-    
-    hashed = auth_utils.get_password_hash(password)
-    new_user = User(email=email, name=name, hashed_password=hashed)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    # Log action
-    log_action(
-        action="user_created",
-        user_id=new_user.id,
-        details=f"User registered: {email}"
+    is_allowed = rate_limiter.is_allowed(
+        f"price:{current_user['user_id']}",
+        max_requests=10, window_seconds=60
     )
+    if not is_allowed:
+        raise HTTPException(status_code=429, detail="Too many updates")
     
-    token = auth_utils.create_access_token({"sub": str(new_user.id), "email": new_user.email})
-    return {
-        "user": {"id": new_user.id, "email": new_user.email, "name": new_user.name, "is_admin": new_user.is_admin}, 
-        "token": token
-    }
-
-@app.post("/api/auth/login")
-async def auth_login(user_data: Dict[str, str], db: Session = Depends(get_users_db)):
-    email = user_data.get("email")
-    password = user_data.get("password")
+    station = db.get(Station, data.station_id)
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
     
-    user = db.query(User).filter(User.email == email).first()
+    last_price = db.exec(
+        select(PriceUpdate)
+        .where(PriceUpdate.station_id == data.station_id,
+               PriceUpdate.fuel_type == data.fuel_type)
+        .order_by(PriceUpdate.created_at.desc())
+    ).first()
     
-    if not user or not auth_utils.verify_password(password, user.hashed_password):
-        raise HTTPException(status_code=401, detail="Неверный email или пароль")
+    old_price = last_price.price if last_price else None
     
-    token = auth_utils.create_access_token({"sub": str(user.id), "email": user.email})
-    return {
-        "user": {"id": user.id, "email": user.email, "name": user.name, "is_admin": user.is_admin}, 
-        "token": token
-    }
-
-@app.post("/api/force-reset-password")
-async def force_reset_password(data: ResetPasswordData, db: Session = Depends(get_users_db)):
-    user = db.query(User).filter(User.email == data.email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
-    
-    user.hashed_password = auth_utils.get_password_hash(data.new_password)
+    price_update = PriceUpdate(
+        station_id=data.station_id,
+        fuel_type=data.fuel_type,
+        price=data.price,
+        source="user"
+    )
+    db.add(price_update)
     db.commit()
-    return {"status": "success", "message": "Password updated"}
+    db.refresh(price_update)
+    
+    contribution = ContributionHistory(
+        user_id=current_user["user_id"],
+        station_id=data.station_id,
+        fuel_type=data.fuel_type,
+        old_price=old_price,
+        new_price=data.price,
+        status="pending"
+    )
+    db.add(contribution)
+    
+    user = db.get(User, current_user["user_id"])
+    user.total_updates += 1
+    db.add(user)
+    
+    log_audit(db, current_user["user_id"], "price_updated",
+              target_id=price_update.id,
+              details={"station": data.station_id, "fuel": data.fuel_type},
+              ip_address=request.client.host if request else None)
+    
+    db.commit()
+    
+    return {"id": price_update.id, "status": "created"}
 
-@app.post("/api/update-price-manual")
-async def update_price(data: ManualPriceUpdate, db: Session = Depends(get_prices_db)):
-    try:
-        for f_type, p_val in data.prices.items():
-            if not p_val or p_val == "—": 
-                continue
-            db.add(PriceUpdate(
-                station_id=data.station_id, 
-                fuel_type=f_type, 
-                price=float(p_val), 
-                user_id=data.user_id
-            ))
-        db.commit()
-        return {"status": "success"}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/admin/add-station")
-async def add_station(station_data: Dict[str, Any], db: Session = Depends(get_stations_db)):
-    try:
-        new_s = Station(
-            name=station_data.get('name'), 
-            brand=station_data.get('brand'), 
-            lat=float(station_data.get('lat', 0)), 
-            lng=float(station_data.get('lng', 0)), 
-            fuel_config=json.dumps(station_data.get('fuel_config', []))
+# ============ BEST PRICE v1.5 ============
+
+@app.post("/api/station/best-price")
+def find_best_price(location: LocationRequest, fuel_type: str = "95",
+                   db: Session = Depends(get_session)):
+    """Найти дешевую заправку"""
+    
+    lat_delta = location.radius_km / 110.0
+    lng_delta = location.radius_km / (110.0 * math.cos(math.radians(location.latitude)))
+    
+    nearby = db.exec(
+        select(Station).where(
+            Station.lat.between(location.latitude - lat_delta, location.latitude + lat_delta),
+            Station.lng.between(location.longitude - lng_delta, location.longitude + lng_delta)
         )
-        db.add(new_s)
-        db.commit()
-        db.refresh(new_s)
-        return {"status": "ok", "id": new_s.id}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/site-info")
-async def get_site_info(db: Session = Depends(get_siteinfo_db)):
-    info = db.query(SiteInfo).all()
-    return {item.key: item.value for item in info}
-
-@app.post("/api/site-info/{key}")
-async def set_site_info(key: str, data: Dict[str, str], db: Session = Depends(get_siteinfo_db)):
-    item = db.query(SiteInfo).filter(SiteInfo.key == key).first()
-    if item:
-        item.value = data.get("value", "")
-    else:
-        item = SiteInfo(key=key, value=data.get("value", ""), description=data.get("description", ""))
-        db.add(item)
-    db.commit()
-    return {"status": "success"}
-
-@app.get("/api/user/{user_id}/profile")
-async def get_user_profile(user_id: int, db: Session = Depends(get_users_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    ).all()
+    
+    valid = []
+    for station in nearby:
+        dist = haversine_distance(location.latitude, location.longitude, 
+                                 station.lat, station.lng)
+        if dist <= location.radius_km:
+            last = db.exec(
+                select(PriceUpdate)
+                .where(PriceUpdate.station_id == station.id,
+                       PriceUpdate.fuel_type == fuel_type)
+                .order_by(PriceUpdate.created_at.desc())
+            ).first()
+            
+            if last and (datetime.utcnow() - last.created_at).total_seconds() < 7200:
+                valid.append({"station": station, "price": last.price, "distance": dist})
+    
+    valid.sort(key=lambda x: x["price"])
     
     return {
-        "user": {"id": user.id, "email": user.email, "name": user.name, "is_admin": user.is_admin},
-        "profile": {
-            "avatar_url": user.avatar_url,
-            "bio": user.bio,
-            "created_at": user.created_at.isoformat() if user.created_at else None
-        }
+        "fuel_type": fuel_type,
+        "best_station": {
+            "id": valid[0]["station"].id,
+            "name": valid[0]["station"].name,
+            "price": round(float(valid[0]["price"]), 2),
+            "distance_km": round(valid[0]["distance"], 1),
+            "crown": "👑"
+        } if valid else None,
+        "nearby": [{
+            "id": s["station"].id,
+            "name": s["station"].name,
+            "price": round(float(s["price"]), 2),
+            "distance_km": round(s["distance"], 1)
+        } for s in valid[:5]]
     }
 
-@app.post("/api/user/{user_id}/profile")
-async def update_user_profile(user_id: int, data: Dict[str, Any], db: Session = Depends(get_users_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
+
+# ============ PRICE HISTORY v1.5 ============
+
+@app.get("/api/station/{station_id}/price-history/{fuel_type}")
+def get_price_history(station_id: int, fuel_type: str, days: int = 30,
+                     db: Session = Depends(get_session)):
+    """График цены"""
+    
+    history = db.exec(
+        select(PriceHistory)
+        .where(PriceHistory.station_id == station_id,
+               PriceHistory.fuel_type == fuel_type)
+        .order_by(PriceHistory.date)
+    ).all()
+    
+    return {
+        "station_id": station_id,
+        "fuel_type": fuel_type,
+        "dates": [h.date for h in history],
+        "avg": [round(h.avg_price, 2) for h in history],
+        "min": [round(h.min_price, 2) for h in history],
+        "max": [round(h.max_price, 2) for h in history]
+    }
+
+
+# ============ ADMIN ============
+
+@app.get("/api/admin/moderation/recent")
+def get_moderation(current_user: Dict = Depends(get_current_user),
+                  limit: int = 50, db: Session = Depends(get_session)):
+    """Список для модерации"""
+    
+    # Проверяем, что это MODERATOR или выше
+    if current_user["role"] not in ["admin", "moderator"]:
+        raise HTTPException(status_code=403, detail="Только модераторы")
+    
+    contribs = db.exec(
+        select(ContributionHistory)
+        .where(ContributionHistory.status == "pending")
+        .order_by(ContributionHistory.created_at.desc())
+        .limit(limit)
+    ).all()
+    
+    result = []
+    for item in contribs:
+        flags = []
+        if item.new_price < 10:
+            flags.append("impossibly_low")
+        
+        user = db.get(User, item.user_id)
+        result.append({
+            "id": item.id,
+            "user_id": item.user_id,
+            "user_karma": user.karma_points if user else 0,
+            "station_id": item.station_id,
+            "fuel_type": item.fuel_type,
+            "price": item.new_price,
+            "flags": flags,
+            "timestamp": item.created_at
+        })
+    
+    return result
+
+
+@app.on_event("startup")
+async def startup():
+    """Инициализация"""
+    try:
+        init_db()
+        print("✅ DB OK")
+    except Exception as e:
+        print(f"⚠️ DB: {e}")
+
+
+@app.get("/api/stations")
+def get_stations(db: Session = Depends(get_session)):
+    """Все АЗС с ценами"""
+    stations = db.exec(select(Station)).all()
+    result = []
+    for station in stations:
+        prices_data = []
+        if station.fuel_config:
+            fuel_list = json.loads(station.fuel_config)
+            for fuel in fuel_list:
+                last_price = db.exec(select(PriceUpdate).where(
+                    PriceUpdate.station_id == station.id,
+                    PriceUpdate.fuel_type == fuel.get('id')
+                ).order_by(PriceUpdate.created_at.desc())).first()
+                prices_data.append({
+                    "id": fuel.get('id'),
+                    "type": fuel.get('label'),
+                    "price": float(last_price.price) if last_price else None
+                })
+        result.append({
+            "id": station.id, "name": station.name, "brand": station.brand,
+            "lat": station.lat, "lng": station.lng, "prices": prices_data
+        })
+    return result
+
+
+# ==================== RBAC API ENDPOINTS ====================
+
+# СТРУКТУРЫ ДЛЯ УПРАВЛЕНИЯ РОЛЯМИ
+class UserRoleUpdate(SQLModel):
+    user_id: int
+    new_role: str
+    reason: Optional[str] = None
+
+
+class UserStationAssignment(SQLModel):
+    user_id: int
+    station_id: int
+    role_at_station: str = "operator"
+
+
+class UserListItem(SQLModel):
+    user_id: int
+    email: str
+    role: str
+    is_banned: bool
+    managed_stations_count: int
+
+
+# 1️⃣ СОЗДАТЬ ПЕРВОГО АДМИНА (ОСОБЫЙ СЛУЧАЙ - когда админов еще нет)
+@app.post("/api/admin/create-initial-admin")
+def create_initial_admin(
+    email: str,
+    password: str,
+    db: Session = Depends(get_session)
+) -> Dict[str, str]:
+    """
+    Создать первого администратора.
+    ТОЛЬКО если в базе нет ни одного админа (безопасность).
+    """
+    # Проверяем, существует ли хуть один админ
+    stmt = select(User).where(User.role == "admin").limit(1)
+    existing_admin = db.exec(stmt).first()
+    
+    if existing_admin:
+        raise HTTPException(status_code=403, detail="Администраторы уже существуют в системе")
+    
+    # Проверяем, не существует ли уже пользователь с этим email
+    stmt = select(User).where(User.email == email.lower())
+    if db.exec(stmt).first():
+        raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
+    
+    # Создаем админа
+    new_admin = User(
+        email=email.lower(),
+        role="admin",
+        is_active=True,
+        karma_points=100,
+        verification_score=100
+    )
+    db.add(new_admin)
+    db.commit()
+    db.refresh(new_admin)
+    
+    # Логируем в AuditLog
+    audit = AuditLog(
+        user_id=new_admin.id,
+        action="CREATE_INITIAL_ADMIN",
+        details={"email": email},
+        ip_address="system"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {"status": "success", "message": "Администратор создан", "admin_id": new_admin.id}
+
+
+# 2️⃣ ИЗМЕНИТЬ РОЛЬ ПОЛЬЗОВАТЕЛЯ (ТОЛЬКО ADMIN)
+@app.post("/api/admin/change-user-role")
+def change_user_role(
+    update: UserRoleUpdate,
+    current_user: Dict = Depends(get_current_user),
+    db: Session = Depends(get_session)
+) -> Dict[str, str]:
+    """
+    Изменить роль пользователя.
+    Допустимые роли: admin, station_owner, moderator, user, guest
+    """
+    # Проверяем, что текущий пользователь - ADMIN
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Только администраторы могут менять роли")
+    
+    # Находим пользователя
+    stmt = select(User).where(User.id == update.user_id)
+    user_to_update = db.exec(stmt).first()
+    
+    if not user_to_update:
+        raise HTTPException(status_code=404, detail=f"Пользователь {update.user_id} не найден")
+    
+    # Проверяем валидность новой роли
+    valid_roles = {"admin", "station_owner", "moderator", "user", "guest"}
+    if update.new_role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Недопустимая роль: {update.new_role}")
+    
+    # Обновляем роль
+    old_role = user_to_update.role
+    user_to_update.role = update.new_role
+    db.add(user_to_update)
+    db.commit()
+    db.refresh(user_to_update)
+    
+    # Логируем
+    audit = AuditLog(
+        user_id=current_user["user_id"],
+        action="CHANGE_USER_ROLE",
+        details={
+            "target_user_id": update.user_id,
+            "old_role": old_role,
+            "new_role": update.new_role,
+            "reason": update.reason
+        },
+        ip_address="api"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {"status": "success", "message": f"Роль изменена на {update.new_role}"}
+
+
+# 3️⃣ ВЫДАТЬ ПОЛЬЗОВАТЕЛЮ ДОСТУП К СТАНЦИИ (ТОЛЬКО ADMIN)
+@app.post("/api/admin/assign-user-to-station")
+def assign_user_to_station(
+    assignment: UserStationAssignment,
+    current_user: Dict = Depends(get_current_user),
+    db: Session = Depends(get_session)
+) -> Dict[str, str]:
+    """
+    Назначить пользователя на станцию.
+    Используется для привязки STATION_OWNER к конкретной станции.
+    """
+    # Проверяем права (только ADMIN)
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Только администраторы")
+    
+    # Проверяем существование пользователя
+    stmt = select(User).where(User.id == assignment.user_id)
+    user_obj = db.exec(stmt).first()
+    if not user_obj:
+        raise HTTPException(status_code=404, detail=f"Пользователь {assignment.user_id} не найден")
+    
+    # Проверяем существование станции
+    stmt = select(Station).where(Station.id == assignment.station_id)
+    station_obj = db.exec(stmt).first()
+    if not station_obj:
+        raise HTTPException(status_code=404, detail=f"Станция {assignment.station_id} не найдена")
+    
+    # Проверяем, нет ли уже связи
+    stmt = select(UserStation).where(
+        UserStation.user_id == assignment.user_id,
+        UserStation.station_id == assignment.station_id
+    )
+    existing = db.exec(stmt).first()
+    
+    if existing:
+        raise HTTPException(status_code=400, detail="Пользователь уже привязан к этой станции")
+    
+    # Создаем связь
+    user_station = UserStation(
+        user_id=assignment.user_id,
+        station_id=assignment.station_id,
+        role_at_station=assignment.role_at_station,
+        assigned_at=datetime.utcnow()
+    )
+    db.add(user_station)
+    db.commit()
+    db.refresh(user_station)
+    
+    # Логируем
+    audit = AuditLog(
+        user_id=current_user["user_id"],
+        action="ASSIGN_USER_TO_STATION",
+        details={
+            "user_id": assignment.user_id,
+            "station_id": assignment.station_id,
+            "role": assignment.role_at_station
+        },
+        ip_address="api"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {"status": "success", "message": f"Пользователь назначен на станцию"}
+
+
+# 4️⃣ ПОЛУЧИТЬ СПИСОК ВСЕХ ПОЛЬЗОВАТЕЛЕЙ (ТОЛЬКО ADMIN)
+@app.get("/api/admin/users", response_model=List[Dict])
+def get_all_users(
+    current_user: Dict = Depends(get_current_user),
+    db: Session = Depends(get_session)
+) -> List[Dict]:
+    """
+    Получить список всех пользователей для админ-панели.
+    """
+    # Проверяем, что текущий пользователь - ADMIN
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Только администраторы")
+    
+    # Получаем всех пользователей
+    stmt = select(User)
+    users = db.exec(stmt).all()
+    
+    result = []
+    for user in users:
+        # Считаем cantidad станций
+        stmt = select(func.count(UserStation.id)).where(UserStation.user_id == user.id)
+        managed_count = db.exec(stmt).scalar() or 0
+        
+        result.append({
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "is_banned": user.is_banned,
+            "ban_reason": user.ban_reason or "—",
+            "karma_points": user.karma_points,
+            "is_active": user.is_active,
+            "managed_stations_count": managed_count,
+            "created_at": user.created_at.isoformat() if user.created_at else None
+        })
+    
+    return result
+
+
+# 5️⃣ ПОЛУЧИТЬ СТАНЦИИ, УПРАВЛЯЕМЫЕ СТАНЦИЙ_ОВНЕРУ (ДЛЯ STATION_OWNER)
+@app.get("/api/user/managed-stations")
+def get_managed_stations(
+    current_user: Dict = Depends(get_current_user),
+    db: Session = Depends(get_session)
+) -> List[Dict]:
+    """
+    Получить список станций, которыми управляет текущий пользователь.
+    Работает для: ADMIN (видит все станции), STATION_OWNER (видит свои), MODERATOR (видит все).
+    """
+    if current_user["role"] == "admin" or current_user["role"] == "moderator":
+        # ADMIN и MODERATOR видят все станции
+        stmt = select(Station)
+    else:
+        # STATION_OWNER видит только свои станции через UserStation
+        stmt = (
+            select(Station)
+            .join(UserStation)
+            .where(UserStation.user_id == current_user["user_id"])
+        )
+    
+    stations = db.exec(stmt).all()
+    
+    result = []
+    for station in stations:
+        # Получаем последние цены
+        stmt = select(PriceUpdate).where(PriceUpdate.station_id == station.id).order_by(PriceUpdate.updated_at.desc()).limit(1)
+        latest_update = db.exec(stmt).first()
+        
+        result.append({
+            "id": station.id,
+            "name": station.name,
+            "brand": station.brand,
+            "lat": station.lat,
+            "lng": station.lng,
+            "is_verified": station.is_verified,
+            "last_update": latest_update.updated_at.isoformat() if latest_update else None,
+            "owner_company": station.owner_company or "—"
+        })
+    
+    return result
+
+
+# 6️⃣ ЗАБЛОКИРОВАТЬ/РАЗБЛОКИРОВАТЬ ПОЛЬЗОВАТЕЛЯ (ТОЛЬКО ADMIN)
+@app.post("/api/admin/ban-user/{user_id}")
+def ban_user(
+    user_id: int,
+    ban_reason: Optional[str] = None,
+    current_user: Dict = Depends(get_current_user),
+    db: Session = Depends(get_session)
+) -> Dict[str, str]:
+    """
+    Заблокировать пользователя (запретить обновление цен).
+    """
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Только администраторы")
+    
+    stmt = select(User).where(User.id == user_id)
+    user_obj = db.exec(stmt).first()
+    
+    if not user_obj:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     
-    user.avatar_url = data.get("avatar_url", user.avatar_url)
-    user.bio = data.get("bio", user.bio)
-    user.updated_at = datetime.datetime.utcnow()
-    
+    user_obj.is_banned = True
+    user_obj.ban_reason = ban_reason or "Блокада администратором"
+    db.add(user_obj)
     db.commit()
-    return {"status": "success"}
+    
+    # Логируем
+    audit = AuditLog(
+        user_id=current_user["user_id"],
+        action="BAN_USER",
+        details={"target_user_id": user_id, "reason": ban_reason},
+        ip_address="api"
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {"status": "success", "message": f"Пользователь заблокирован"}
+
 
 @app.get("/")
-def root():
-    return {"message": "Cheap Gasoline API running. See /docs for interactive API."}
+def read_root():
+    return {"status": "online", "message": "Gasoline API v1.5 (с RBAC)"}
 
-@app.post("/api/upload-photo")
-def upload_photo(file: UploadFile = File(...)):
-    """Загрузить фото (для OCR или других целей)"""
-    try:
-        suffix = os.path.splitext(file.filename)[1]
-        dest_path = os.path.join(UPLOAD_DIR, f"upload_{os.urandom(6).hex()}{suffix}")
-        with open(dest_path, "wb") as f:
-            f.write(file.file.read())
-        
-        return {
-            "filename": os.path.basename(dest_path),
-            "path": f"/api/uploads/{os.path.basename(dest_path)}"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/uploads/{filename}")
-def get_upload(filename: str):
-    """Получить загруженный файл"""
-    fpath = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(fpath):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(fpath)
-
-# --- HELPER: LOG ACTION ---
-def log_action(action: str, user_id: int = None, target_user_id: int = None, details: str = None, ip: str = None):
-    """Логировать действие в AuditLog"""
-    try:
-        db = SiteInfoSessionLocal()
-        log_entry = AuditLog(
-            user_id=user_id,
-            action=action,
-            target_user_id=target_user_id,
-            details=details,
-            ip_address=ip
-        )
-        db.add(log_entry)
-        db.commit()
-        db.close()
-    except Exception as e:
-        print(f"Log error: {e}")
-
-# --- ADMIN ENDPOINTS ---
-@app.get("/api/admin/users")
-def admin_get_users(current_user: User = Depends(get_current_user)):
-    """Получить всех пользователей (только для админов)"""
-    if current_user.role not in ["admin", "superadmin"] and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    db = UsersSessionLocal()
-    try:
-        users = db.query(User).all()
-        return [{
-            "id": u.id,
-            "email": u.email,
-            "name": u.name,
-            "role": u.role,
-            "is_admin": u.is_admin,
-            "avatar_url": u.avatar_url,
-            "bio": u.bio,
-            "created_at": u.created_at.isoformat() if u.created_at else None,
-            "updated_at": u.updated_at.isoformat() if u.updated_at else None
-        } for u in users]
-    finally:
-        db.close()
-
-@app.put("/api/admin/user/{user_id}/role")
-def admin_update_user_role(user_id: int, role_data: Dict[str, str], current_user: User = Depends(get_current_user)):
-    """Изменить роль пользователя"""
-    if current_user.role not in ["admin", "superadmin"] and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    if current_user.id == user_id and role_data.get("role") != current_user.role:
-        raise HTTPException(status_code=400, detail="Cannot change own role")
-    
-    db = UsersSessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        old_role = user.role
-        new_role = role_data.get("role", "user")
-        
-        if new_role not in ["user", "moderator", "admin", "superadmin"]:
-            raise HTTPException(status_code=400, detail="Invalid role")
-        
-        user.role = new_role
-        user.is_admin = (new_role in ["admin", "superadmin"])
-        db.commit()
-        
-        # Log action
-        log_action(
-            action="role_changed",
-            user_id=current_user.id,
-            target_user_id=user_id,
-            details=f"Role changed from {old_role} to {new_role}"
-        )
-        
-        return {"success": True, "message": f"Role changed to {new_role}"}
-    finally:
-        db.close()
-
-@app.delete("/api/admin/user/{user_id}")
-def admin_delete_user(user_id: int, current_user: User = Depends(get_current_user)):
-    """Удалить пользователя"""
-    if current_user.role not in ["admin", "superadmin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    if current_user.id == user_id:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
-    
-    db = UsersSessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        email = user.email
-        db.delete(user)
-        db.commit()
-        
-        # Log action
-        log_action(
-            action="user_deleted",
-            user_id=current_user.id,
-            target_user_id=user_id,
-            details=f"Deleted user: {email}"
-        )
-        
-        return {"success": True, "message": f"User {email} deleted"}
-    finally:
-        db.close()
-
-@app.get("/api/admin/logs")
-def admin_get_logs(current_user: User = Depends(get_current_user), limit: int = 100):
-    """Получить логи аудита"""
-    if current_user.role not in ["admin", "superadmin"] and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    db = SiteInfoSessionLocal()
-    try:
-        logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit).all()
-        return [{
-            "id": log.id,
-            "user_id": log.user_id,
-            "action": log.action,
-            "target_user_id": log.target_user_id,
-            "details": log.details,
-            "ip_address": log.ip_address,
-            "created_at": log.created_at.isoformat() if log.created_at else None
-        } for log in logs]
-    finally:
-        db.close()
-
-@app.post("/api/admin/user/{user_id}/ban")
-def admin_ban_user(user_id: int, ban_data: Dict[str, str], current_user: User = Depends(get_current_user)):
-    """Заблокировать пользователя"""
-    if current_user.role not in ["admin", "superadmin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    db = UsersSessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        user.role = "banned"
-        db.commit()
-        
-        log_action(
-            action="user_banned",
-            user_id=current_user.id,
-            target_user_id=user_id,
-            details=ban_data.get("reason", "No reason provided")
-        )
-        
-        return {"success": True, "message": f"User {user.email} banned"}
-    finally:
-        db.close()
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    port = int(os.environ.get("PORT", 8001))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -1,14 +1,18 @@
 import React, { useState } from "react";
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { setCredentials } from "../../features/auth/authSlice";
-import { register as fakeRegister } from "../../app/api/fakeAuth";
+import {
+  firebaseRegister,
+  firebaseSignInWithGoogle,
+  firebaseSignInWithApple,
+} from "../../app/api/firebaseAuth";
+import { setError, clearError } from "../../app/api/authSlice";
 
 const UserRegistrationForm = () => {
   const [values, setValues] = useState({ email: "", name: "", password: "" });
   const [previewUrl, setPreviewUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setLocalError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const dispatch = useDispatch();
@@ -31,12 +35,43 @@ const UserRegistrationForm = () => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    dispatch(clearError());
     try {
-      const result = await fakeRegister({ ...values, avatar: previewUrl });
-      dispatch(setCredentials(result));
+      await firebaseRegister(values.email, values.password, values.name);
       navigate("/profile");
     } catch (err) {
-      setError(err?.message || "Ошибка регистрации");
+      setLocalError(err.message || "Ошибка регистрации");
+      dispatch(setError(err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setLoading(true);
+    setError("");
+    dispatch(clearError());
+    try {
+      await firebaseSignInWithGoogle();
+      navigate("/profile");
+    } catch (err) {
+      setLocalError(err.message || "Ошибка Google регистрации");
+      dispatch(setError(err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAppleSignup = async () => {
+    setLoading(true);
+    setError("");
+    dispatch(clearError());
+    try {
+      await firebaseSignInWithApple();
+      navigate("/profile");
+    } catch (err) {
+      setLocalError(err.message || "Ошибка Apple регистрации");
+      dispatch(setError(err.message));
     } finally {
       setLoading(false);
     }
@@ -239,6 +274,26 @@ const UserRegistrationForm = () => {
               {loading ? "Creating..." : "Sign Up"}
             </button>
           </form>
+
+          <div className="mt-6 space-y-3">
+            <button
+              type="button"
+              onClick={handleGoogleSignup}
+              disabled={loading}
+              className="w-full py-3 rounded-2xl bg-white/10 border border-white/10 text-white font-bold uppercase tracking-[0.2em] hover:bg-white/20 transition-all"
+            >
+              Continue with Google
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAppleSignup}
+              disabled={loading}
+              className="w-full py-3 rounded-2xl bg-black/20 border border-white/10 text-white font-bold uppercase tracking-[0.2em] hover:bg-white/10 transition-all"
+            >
+              Continue with Apple
+            </button>
+          </div>
 
           <div className="mt-8 text-center">
             <p className="text-white/30 text-xs mb-3">Уже есть аккаунт?</p>

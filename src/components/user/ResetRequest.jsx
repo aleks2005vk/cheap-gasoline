@@ -1,37 +1,24 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { firebaseSendPasswordReset } from "../../app/api/firebaseAuth";
 
 const ResetRequest = () => {
   const [email, setEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const handleReset = async (e) => {
     e.preventDefault();
-    if (step === 1) return setStep(2);
-
     setLoading(true);
-    try {
-      const res = await fetch(
-        "http://127.0.0.1:8001/api/force-reset-password",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, new_password: newPassword }),
-        },
-      );
+    setError("");
 
-      if (res.ok) {
-        setSuccess(true);
-        setTimeout(() => navigate("/login"), 2500);
-      } else {
-        alert("Email не найден!");
-      }
+    try {
+      await firebaseSendPasswordReset(email);
+      setSuccess(true);
     } catch (err) {
-      alert("Ошибка сети");
+      setError(err.message || "Ошибка отправки письма");
     } finally {
       setLoading(false);
     }
@@ -54,57 +41,50 @@ const ResetRequest = () => {
         {success ? (
           <div className="text-center bg-green-500/10 border border-green-500/20 p-8 rounded-3xl animate-pulse">
             <p className="text-green-400 font-black uppercase text-sm tracking-widest">
-              Success!
+              Письмо отправлено!
             </p>
             <p className="text-white/40 text-[10px] mt-2 font-bold uppercase">
-              Redirecting to login...
+              Проверьте почту и продолжите по ссылке.
             </p>
+            <button
+              type="button"
+              onClick={() => navigate("/login")}
+              className="mt-6 inline-flex items-center justify-center px-6 py-3 bg-white/10 text-white font-bold uppercase tracking-[0.2em] rounded-2xl hover:bg-white/20 transition-all"
+            >
+              Вернуться к входу
+            </button>
           </div>
         ) : (
           <form onSubmit={handleReset} className="flex flex-col gap-6">
-            <div
-              className={`transition-all duration-300 ${step === 2 ? "opacity-30 pointer-events-none blur-sm" : ""}`}
-            >
-              <div className="relative group">
-                <input
-                  type="email"
-                  name="email" // Важно
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  placeholder="Enter your email"
-                  className="w-full px-6 py-4 bg-black/30 border border-white/10 focus:border-blue-500 rounded-2xl text-white outline-none font-bold placeholder-white/20 transition-all"
-                />
-              </div>
-            </div>
-
-            {step === 2 && (
-              <div className="animate-in fade-in slide-in-from-top-4 relative group">
-                <input
-                  type="password"
-                  name="new-password" // Важно
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  autoFocus
-                  placeholder="New Password"
-                  className="w-full px-6 py-4 bg-black/30 border-2 border-blue-500/50 rounded-2xl text-white outline-none font-bold placeholder-white/20 shadow-[0_0_20px_rgba(59,130,246,0.2)]"
-                />
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-red-200 text-xs font-bold text-center backdrop-blur-sm">
+                ⚠️ {error}
               </div>
             )}
+
+            <div className="relative group">
+              <input
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="Your email address"
+                className="w-full px-6 py-4 bg-black/30 border border-white/10 focus:border-blue-500 rounded-2xl text-white outline-none font-bold placeholder-white/20 transition-all"
+              />
+            </div>
+
+            <p className="text-white/40 text-[11px] leading-5">
+              Мы отправим ссылку для сброса пароля на указанный email.
+            </p>
 
             <button
               type="submit"
               disabled={loading}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-900/40 hover:shadow-blue-600/40 hover:scale-[1.02] active:scale-95 transition-all"
             >
-              {loading
-                ? "Processing..."
-                : step === 1
-                  ? "Continue"
-                  : "Update Password"}
+              {loading ? "Отправляем..." : "Отправить письмо"}
             </button>
 
             <button

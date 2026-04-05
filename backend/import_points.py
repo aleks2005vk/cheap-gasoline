@@ -19,8 +19,12 @@ class Station(SQLModel, table=True):
     brand: Optional[str] = None
     lat: float
     lng: float
+    osm_id: Optional[int] = None
     address: Optional[str] = None
     fuel_config: Optional[str] = None
+    owner_company: Optional[str] = None
+    is_verified: bool = False
+    created_at: Optional[datetime.datetime] = None
 
 class PriceUpdate(SQLModel, table=True):
     __tablename__ = "priceupdate"
@@ -28,8 +32,9 @@ class PriceUpdate(SQLModel, table=True):
     station_id: int = Field(foreign_key="station.id")
     fuel_type: str
     price: float
-    timestamp: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
     source: str = "initial_import"
+    note: Optional[str] = None
+    created_at: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
 
 # Правила кнопок
 FUEL_RULES = {

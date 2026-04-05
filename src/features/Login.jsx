@@ -1,7 +1,11 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
-import { useLoginMutation } from "./auth/authApiSlice";
-import { setCredentials } from "./auth/authSlice";
+import {
+  firebaseLogin,
+  firebaseSignInWithGoogle,
+  firebaseSignInWithApple,
+} from "../app/api/firebaseAuth";
+import { setError, clearError } from "../app/api/authSlice";
 import { useNavigate } from "react-router-dom";
 
 const Login = () => {
@@ -12,8 +16,8 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [errMsg, setErrMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [login, { isLoading }] = useLoginMutation();
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -27,16 +31,45 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    dispatch(clearError());
+    setIsLoading(true);
     try {
-      const userData = await login({ email, password }).unwrap();
-      dispatch(setCredentials(userData));
+      await firebaseLogin(email, password);
       navigate("/profile");
     } catch (err) {
-      if (!err?.status) setErrMsg("Сервер не отвечает");
-      else if (err.status === 400) setErrMsg("Введите Email и Пароль");
-      else if (err.status === 401) setErrMsg("Неверный логин или пароль");
-      else setErrMsg("Ошибка авторизации");
+      setErrMsg(err.message || "Ошибка входа");
+      dispatch(setError(err.message));
       if (errRef.current) errRef.current.focus();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    dispatch(clearError());
+    setIsLoading(true);
+    try {
+      await firebaseSignInWithGoogle();
+      navigate("/profile");
+    } catch (err) {
+      setErrMsg(err.message || "Ошибка Google входа");
+      dispatch(setError(err.message));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    dispatch(clearError());
+    setIsLoading(true);
+    try {
+      await firebaseSignInWithApple();
+      navigate("/profile");
+    } catch (err) {
+      setErrMsg(err.message || "Ошибка Apple входа");
+      dispatch(setError(err.message));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -193,6 +226,26 @@ const Login = () => {
             {isLoading ? "Входим..." : "Login"}
           </button>
         </form>
+
+        <div className="mt-6 space-y-3">
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            className="w-full py-3 rounded-2xl bg-white/10 border border-white/10 text-white font-bold uppercase tracking-[0.2em] hover:bg-white/20 transition-all"
+            disabled={isLoading}
+          >
+            Continue with Google
+          </button>
+
+          <button
+            type="button"
+            onClick={handleAppleLogin}
+            className="w-full py-3 rounded-2xl bg-black/20 border border-white/10 text-white font-bold uppercase tracking-[0.2em] hover:bg-white/10 transition-all"
+            disabled={isLoading}
+          >
+            Continue with Apple
+          </button>
+        </div>
 
         <div className="mt-8 text-center">
           <p className="text-white/30 text-xs mb-3">Нет аккаунта?</p>

@@ -1,48 +1,94 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-// ПРАВИЛЬНЫЙ ПУТЬ: поднимаемся на 3 уровня (map -> ui -> components -> src) и идем в features
-import { selectCurrentToken } from "../../../features/auth/authSlice";
-import GoogleAd from "../Ads/GoogleAd";
+// ИСПРАВИЛ ПУТЬ К AUTH SLICE (3 ТОЧКИ)
+import { selectCurrentUser } from "../../../features/auth/authSlice";
+// ИМПОРТ КОНФИГА
+import { API_URL } from "../../../config";
+
+// СОПОСТАВЛЕНИЕ РОЛЕЙ С ПРАВАМИ
+const ROLE_CONFIG = {
+  admin: {
+    label: "👑 АДМИНИСТРАТОР",
+    color: "bg-red-100 text-red-700",
+    canUpdate: true,
+  },
+  station_owner: {
+    label: "🏢 ВЛАДЕЛЕЦ",
+    color: "bg-blue-100 text-blue-700",
+    canUpdate: true,
+  },
+  moderator: {
+    label: "✓ МОДЕРАТОР",
+    color: "bg-green-100 text-green-700",
+    canUpdate: true,
+  },
+  user: {
+    label: "👤 ПОЛЬЗОВАТЕЛЬ",
+    color: "bg-gray-100 text-gray-700",
+    canUpdate: true,
+  },
+  guest: {
+    label: "🔒 ГОСТЬ",
+    color: "bg-gray-50 text-gray-500",
+    canUpdate: false,
+  },
+};
 
 const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
   const navigate = useNavigate();
-  const token = useSelector(selectCurrentToken); // Токен для авторизованных запросов
+  const user = useSelector(selectCurrentUser);
   const scrollContainerRef = useRef(null);
   const cardRefs = useRef({});
   const [filterMode, setFilterMode] = useState("nearest");
 
-  // Умный скролл: центрирует выбранную карточку в списке
+  // ОПРЕДЕЛЕНИЕ ТЕКУЩЕЙ РОЛИ
+  const currentRole = user?.role || "guest";
+  const roleConfig = ROLE_CONFIG[currentRole] || ROLE_CONFIG.guest;
+
+  // ФУНКЦИЯ ДЛЯ ПРОВЕРКИ, МОЖЕТ ЛИ ПОЛЬЗОВАТЕЛЬ ОБНОВИТЬ ЦЕНУ ДЛЯ СТАНЦИИ
+  const canUpdatePrice = (stationId) => {
+    if (!user || currentRole === "guest") return false;
+    if (currentRole === "admin" || currentRole === "moderator") return true;
+    if (currentRole === "station_owner") {
+      // Проверяем, принадлежит ли станция пользователю
+      return user.managed_stations?.includes(stationId) ?? false;
+    }
+    if (currentRole === "user") return true; // USER может предлагать цены
+    return false;
+  };
+
   useEffect(() => {
     if (selectedPoint && scrollContainerRef.current) {
       const targetCard = cardRefs.current[selectedPoint.id];
       if (targetCard) {
-        targetCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        const container = scrollContainerRef.current;
+        container.scrollTo({
+          top:
+            targetCard.offsetTop -
+            container.offsetHeight / 2 +
+            targetCard.offsetHeight / 2,
+          behavior: "smooth",
+        });
       }
     }
   }, [selectedPoint]);
 
-  // Функция ручного обновления цены (ИСПРАВЛЕН URL И ДОБАВЛЕН ТОКЕН)
   const handlePriceClick = async (station, fuelId, currentLabel) => {
     const newVal = prompt(`Введите цену для ${currentLabel}:`);
     if (!newVal || isNaN(parseFloat(newVal))) return;
 
     try {
-      const response = await fetch(
-        `https://cheap-gasoline.onrender.com/api/update-price-manual`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
-          body: JSON.stringify({
-            station_id: station.id,
-            brand: station.brand,
-            prices: { [fuelId]: newVal },
-          }),
-        },
-      );
+      // ИСПОЛЬЗУЕМ API_URL ИЗ КОНФИГА
+      const response = await fetch(`${API_URL}/api/update-price-manual`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          station_id: station.id,
+          user_id: user?.id,
+          prices: { [fuelId]: newVal },
+        }),
+      });
 
       if (response.ok) {
         setStations((prev) =>
@@ -60,35 +106,35 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
       }
     } catch (err) {
       console.error("Ошибка при обновлении цены:", err);
+      alert("Ошибка соединения с сервером");
     }
   };
 
-  // Фильтрация и сортировка заправок
-  const filteredStations = (stations || [])
+  const filteredStations = stations
     .filter((s) =>
-      filterMode === "nearest" ? true : s.prices?.some((p) => p.price !== "—"),
+      filterMode === "nearest"
+        ? true
+        : s.prices?.some((p) => p.price && p.price !== "—"),
     )
     .sort((a, b) =>
       filterMode === "nearest" ? (a.distance || 0) - (b.distance || 0) : 0,
     );
 
   return (
-    <div className="fixed bottom-0 right-0 md:top-0 h-[65vh] md:h-screen w-full md:w-96 flex flex-col bg-white rounded-t-[3rem] md:rounded-none shadow-[0_-10px_40px_rgba(0,0,0,0.1)] md:shadow-2xl z-[1001] border-t md:border-t-0 md:border-l border-gray-100 transition-all duration-500 ease-in-out">
-      {/* iOS Drag Handle (только для мобилок) */}
-      <div className="flex justify-center p-3 md:hidden">
-        <div className="w-12 h-1.5 bg-gray-300 rounded-full" />
+    <div className="fixed bottom-0 left-0 right-0 md:top-20 md:right-4 md:left-auto md:bottom-24 md:w-96 h-[50vh] md:h-auto md:max-h-[80vh] flex flex-col bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.2)] md:shadow-2xl z-[1001] rounded-t-[2.5rem] md:rounded-3xl border border-gray-100 transition-all duration-300">
+      <div className="flex justify-center py-3 md:hidden bg-white rounded-t-[2.5rem]">
+        <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
       </div>
 
-      {/* Шапка с фильтрами */}
-      <div className="px-6 py-2 sticky top-0 bg-white/95 backdrop-blur-md z-10 md:pt-20">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
+      <div className="px-6 py-2 bg-white z-10 border-b border-gray-50 md:rounded-t-3xl">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
           {["nearest", "withPrices"].map((mode) => (
             <button
               key={mode}
               onClick={() => setFilterMode(mode)}
-              className={`px-6 py-2.5 rounded-full text-[11px] font-bold uppercase transition-all whitespace-nowrap ${
+              className={`px-6 py-2 rounded-2xl text-[10px] font-bold uppercase transition-all whitespace-nowrap ${
                 filterMode === mode
-                  ? "bg-black text-white shadow-lg"
+                  ? "bg-blue-600 text-white shadow-md"
                   : "bg-gray-100 text-gray-500 hover:bg-gray-200"
               }`}
             >
@@ -98,10 +144,9 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
         </div>
       </div>
 
-      {/* Список карточек заправок */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 px-6 space-y-4 overflow-y-auto no-scrollbar pb-24"
+        className="flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar pb-20 md:pb-4"
       >
         {filteredStations.map((station) => {
           const isSelected = selectedPoint?.id === station.id;
@@ -110,23 +155,21 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
               key={station.id}
               ref={(el) => (cardRefs.current[station.id] = el)}
               onClick={() => onPointClick(station)}
-              className={`p-5 rounded-[2.5rem] transition-all border-2 cursor-pointer ${
+              className={`p-5 rounded-[2rem] transition-all border-2 cursor-pointer ${
                 isSelected
-                  ? "border-blue-500 bg-blue-50/30 shadow-sm scale-[1.01]"
-                  : "border-transparent bg-gray-50/50 shadow-sm hover:border-gray-200"
+                  ? "border-blue-500 bg-white shadow-xl scale-[1.02]"
+                  : "border-transparent bg-gray-50/80 hover:border-gray-200"
               }`}
             >
-              {/* Информация о заправке */}
               <div className="mb-4 px-1">
-                <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight leading-tight">
+                <h3 className="text-lg font-black text-gray-900 uppercase leading-tight">
                   {station.name}
                 </h3>
-                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">
-                  {station.brand} • {station.distance?.toFixed(1) || 0} км
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+                  {station.brand}
                 </p>
               </div>
 
-              {/* Сетка цен */}
               <div className="grid grid-cols-2 gap-2">
                 {station.prices?.map((p, i) => (
                   <div
@@ -137,62 +180,79 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                         handlePriceClick(station, p.id, p.type);
                       }
                     }}
-                    className="p-3 bg-white rounded-2xl border border-gray-100 flex flex-col items-center hover:bg-gray-100 transition-colors shadow-sm"
+                    className="p-3 bg-white border border-gray-100 rounded-2xl flex flex-col items-center hover:bg-blue-50 transition-colors"
                   >
                     <span className="text-[7px] font-black text-gray-400 uppercase mb-1">
                       {p.type}
                     </span>
                     <span className="text-base font-black text-gray-800">
-                      {p.price}
+                      {p.price || "—"}
                     </span>
                   </div>
                 ))}
               </div>
 
-              {/* Дополнительные действия при выборе (стиль iOS) */}
               {isSelected && (
-                <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/add-photo?id=${station.id}`);
-                    }}
-                    className="w-full py-4 bg-blue-600 text-white text-[10px] font-black rounded-2xl shadow-lg active:scale-95 hover:bg-blue-700 transition-all"
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-in fade-in zoom-in duration-300">
+                  {/* БЕЙДЖ С РОЛЬЮ ПОЛЬЗОВАТЕЛЯ */}
+                  <div
+                    className={`px-3 py-2 rounded-xl text-xs font-bold text-center ${roleConfig.color}`}
                   >
-                    📸 ОБНОВИТЬ ЦЕНЫ ЧЕРЕЗ ФОТО
-                  </button>
+                    {roleConfig.label}
+                  </div>
+
+                  {/* КНОПКА ОБНОВЛЕНИЯ ЦЕНЫ С ПРОВЕРКОЙ ДОСТУПА */}
+                  {user && canUpdatePrice(station.id) ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/add-photo?id=${station.id}`);
+                      }}
+                      className="w-full py-4 bg-blue-600 text-white text-[10px] font-black rounded-2xl shadow-lg hover:bg-blue-700 transition-all active:scale-95"
+                    >
+                      📸 ОБНОВИТЬ ЦЕНЫ
+                      {currentRole === "user" && " (на модерации)"}
+                    </button>
+                  ) : currentRole === "guest" ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate("/login");
+                      }}
+                      className="w-full py-4 bg-gray-300 text-gray-600 text-[10px] font-black rounded-2xl shadow-lg cursor-not-allowed"
+                    >
+                      🔒 ВОЙДИТЕ ДЛЯ ОБНОВЛЕНИЯ
+                    </button>
+                  ) : currentRole === "station_owner" &&
+                    !canUpdatePrice(station.id) ? (
+                    <div className="w-full py-4 bg-orange-100 text-orange-700 text-[10px] font-black rounded-2xl text-center">
+                      ⚠️ ЭТА СТАНЦИЯ НЕ ВАША
+                    </div>
+                  ) : null}
 
                   <div className="grid grid-cols-2 gap-2">
                     <a
                       href={`yandexnavi://build_route_on_map?lat_to=${station.lat}&lon_to=${station.lng}`}
-                      className="py-3 bg-[#FFCC00] text-black text-[10px] font-black rounded-xl text-center uppercase shadow-sm"
+                      className="py-3 bg-yellow-400 text-black text-[10px] font-black rounded-xl text-center uppercase shadow-sm"
                       onClick={(e) => e.stopPropagation()}
                     >
                       ЯНДЕКС
                     </a>
                     <a
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${station.lat},${station.lng}`}
+                      href={`http://maps.google.com/maps?daddr=${station.lat},${station.lng}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="py-3 bg-white border border-gray-200 text-gray-600 text-[10px] font-black rounded-xl text-center uppercase shadow-sm"
+                      className="py-3 bg-gray-100 text-gray-600 text-[10px] font-black rounded-xl text-center uppercase"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      GOOGLE MAPS
+                      GOOGLE
                     </a>
-                  </div>
-
-                  <div className="text-center text-[8px] font-bold text-gray-300 uppercase tracking-widest">
-                    Построить маршрут
                   </div>
                 </div>
               )}
             </div>
           );
         })}
-        {/* Можно добавить рекламу в конец списка */}
-        <div className="mt-4">
-          <GoogleAd />
-        </div>
       </div>
     </div>
   );

@@ -1,18 +1,19 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { selectCurrentUser, logout } from "../../../features/auth/authSlice";
+import { logout } from "../../../app/api/authSlice";
+import { firebaseLogout } from "../../../app/api/firebaseAuth";
 
 export default function Navbar() {
-  const user = useSelector(selectCurrentUser);
+  const user = useSelector((state) => state.auth.user);
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  const isAuth = !!user;
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await firebaseLogout();
     dispatch(logout());
     navigate("/");
     setProfileMenuOpen(false);
@@ -74,7 +75,7 @@ export default function Navbar() {
               <span className="hidden sm:inline">Обновить цену</span>
             </Link>
 
-            {isAuth ? (
+            {isAuthenticated ? (
               <div className="relative">
                 <button
                   onClick={() => setProfileMenuOpen(!profileMenuOpen)}
@@ -85,7 +86,9 @@ export default function Navbar() {
                       {user.name || "User"}
                     </span>
                     <span className="text-[9px] text-white/30 font-medium">
-                      {user.is_admin ? "Administrator" : "Verified Account"}
+                      {user.role === "admin"
+                        ? "Administrator"
+                        : "Verified Account"}
                     </span>
                   </div>
 

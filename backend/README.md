@@ -50,12 +50,16 @@ pip install -r backend/requirements.txt
 Run the server (development)
 
 ```powershell
-# SQLite (default)
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+# From project root (recommended):
+npm run backend:dev
 
-# PostgreSQL (with env var set)
+# Or from the backend folder, using the built-in startup helper:
+cd backend
+.\.venv\Scripts\python.exe start.py
+
+# PostgreSQL example (from project root):
 $env:BACKEND_DATABASE_URL = "postgresql://postgres:PASSWORD@localhost:5432/cheap_gasoline"
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+npm run backend:dev
 ```
 
 Or use npm scripts from project root (already configured):
