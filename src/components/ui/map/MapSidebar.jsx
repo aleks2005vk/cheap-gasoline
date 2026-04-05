@@ -74,7 +74,8 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
 
   const handleTouchMove = (e) => {
     if (!isDragging) return;
-    e.preventDefault(); // Предотвращаем скролл страницы
+    // Не используем preventDefault, так как touch события passive по умолчанию
+    // Вместо этого используем CSS touch-action: none
     setCurrentY(e.touches[0].clientY);
   };
 
@@ -178,7 +179,10 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
           ? 'h-full md:h-full' 
           : 'h-[50vh] md:h-auto md:max-h-[80vh]'
       } flex flex-col bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.2)] md:shadow-2xl z-[1001] rounded-t-[2.5rem] md:rounded-3xl border border-gray-100 transition-all duration-300`}
-      style={{ transform: getTransform() }}
+      style={{ 
+        transform: getTransform(),
+        touchAction: isDragging ? 'none' : 'auto' // Предотвращаем скролл во время перетаскивания
+      }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
