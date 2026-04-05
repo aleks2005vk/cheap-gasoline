@@ -26,22 +26,38 @@ cheap_gasoline/
 │   ├── main.py             # FastAPI application
 │   ├── database.py         # Database operations
 │   ├── models.py           # Pydantic models
+│   ├── auth.py             # Firebase authentication
 │   ├── auth_utils.py       # Authentication utilities
 │   ├── ocr_utils.py        # OCR processing
+│   ├── data/               # Database files
+│   ├── uploads/            # File uploads
 │   ├── requirements.txt    # Python dependencies
-│   └── uploads/            # File uploads
+│   └── README.md           # Backend documentation
 ├── src/                    # React frontend
 │   ├── components/         # React components
 │   ├── features/           # Feature modules
 │   ├── assets/             # Static assets
 │   └── main.jsx            # Entry point
+├── docs/                   # Documentation
+│   ├── ACTIVITY.md         # Development activity log
+│   ├── BACKEND_READY.md    # Backend readiness checklist
+│   ├── DEPLOY.md           # Deployment instructions
+│   ├── RBAC.md             # Role-Based Access Control
+│   ├── ROADMAP.md          # Project roadmap
+│   └── README.md           # Documentation index
+├── tools/                  # Utility scripts
+│   ├── append_points.cjs   # Data append scripts
+│   ├── check_prices.py     # Price checking utility
+│   ├── parse_georgia.cjs   # Data parsing scripts
+│   └── README.md           # Tools documentation
 ├── scripts/                # Data processing scripts
 │   ├── parse_overpass_tbilisi.cjs
 │   └── new_points_*.json   # Processed data
 ├── public/                 # Static files
+├── data/                   # Additional data files
 ├── package.json            # Frontend dependencies
 ├── vite.config.js          # Vite configuration
-└── README.md               # Documentation
+└── README.md               # Main documentation
 ```
 
 ## � Environment Setup
