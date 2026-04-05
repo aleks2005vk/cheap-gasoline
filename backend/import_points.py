@@ -66,8 +66,8 @@ def import_into_db():
         print(f"Файл не найден: {POINTS_JSON_PATH}")
         return
 
-    # Читаем JSON (используем utf-16 так как у тебя файл в ней)
-    with open(POINTS_JSON_PATH, 'r', encoding='utf-16') as f:
+    # Читаем JSON
+    with open(POINTS_JSON_PATH, 'r', encoding='utf-8') as f:
         points = json.load(f)
 
     with Session(engine) as session:

@@ -41,6 +41,13 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
   const scrollContainerRef = useRef(null);
   const cardRefs = useRef({});
   const [filterMode, setFilterMode] = useState("nearest");
+  
+  // Новые состояния для слайдера
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startY, setStartY] = useState(0);
+  const [currentY, setCurrentY] = useState(0);
+  const sidebarRef = useRef(null);
 
   // ОПРЕДЕЛЕНИЕ ТЕКУЩЕЙ РОЛИ
   const currentRole = user?.role || "guest";
@@ -56,6 +63,49 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
     }
     if (currentRole === "user") return true; // USER может предлагать цены
     return false;
+  };
+
+  // Функции для управления слайдером
+  const handleTouchStart = (e) => {
+    setIsDragging(true);
+    setStartY(e.touches[0].clientY);
+    setCurrentY(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging) return;
+    e.preventDefault(); // Предотвращаем скролл страницы
+    setCurrentY(e.touches[0].clientY);
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    
+    const deltaY = currentY - startY;
+    const threshold = 100; // Минимальное расстояние для срабатывания
+    
+    if (deltaY > threshold) {
+      // Свайп вниз - закрываем
+      setIsExpanded(false);
+    } else if (deltaY < -threshold) {
+      // Свайп вверх - раскрываем
+      setIsExpanded(true);
+    }
+    
+    setIsDragging(false);
+    setStartY(0);
+    setCurrentY(0);
+  };
+
+  const handleDoubleClick = () => {
+    setIsExpanded(!isExpanded);
+  };
+
+  // Вычисляем трансформацию во время перетаскивания
+  const getTransform = () => {
+    if (!isDragging) return '';
+    const deltaY = Math.max(0, currentY - startY);
+    return `translateY(${deltaY}px)`;
   };
 
   useEffect(() => {
@@ -121,8 +171,20 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
     );
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 md:top-20 md:right-4 md:left-auto md:bottom-24 md:w-96 h-[50vh] md:h-auto md:max-h-[80vh] flex flex-col bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.2)] md:shadow-2xl z-[1001] rounded-t-[2.5rem] md:rounded-3xl border border-gray-100 transition-all duration-300">
-      <div className="flex justify-center py-3 md:hidden bg-white rounded-t-[2.5rem]">
+    <div 
+      ref={sidebarRef}
+      className={`fixed bottom-0 left-0 right-0 md:top-20 md:right-4 md:left-auto md:bottom-24 md:w-96 ${
+        isExpanded 
+          ? 'h-full md:h-full' 
+          : 'h-[50vh] md:h-auto md:max-h-[80vh]'
+      } flex flex-col bg-white shadow-[0_-10px_40px_rgba(0,0,0,0.2)] md:shadow-2xl z-[1001] rounded-t-[2.5rem] md:rounded-3xl border border-gray-100 transition-all duration-300`}
+      style={{ transform: getTransform() }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onDoubleClick={handleDoubleClick}
+    >
+      <div className="flex justify-center py-3 md:hidden bg-white rounded-t-[2.5rem] cursor-grab active:cursor-grabbing">
         <div className="w-12 h-1.5 bg-gray-300 rounded-full"></div>
       </div>
 
@@ -146,7 +208,9 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
 
       <div
         ref={scrollContainerRef}
-        className="flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar pb-20 md:pb-4"
+        className={`flex-1 p-4 space-y-4 overflow-y-auto no-scrollbar ${
+          isExpanded ? 'pb-4' : 'pb-20 md:pb-4'
+        }`}
       >
         {filteredStations.map((station) => {
           const isSelected = selectedPoint?.id === station.id;
