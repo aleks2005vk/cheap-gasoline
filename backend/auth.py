@@ -14,7 +14,7 @@ import json
 
 # Инициализация Firebase
 try:
-    cred = credentials.Certificate("firebase-service-account.json")  # Путь к ключу
+    cred = credentials.Certificate("firebase-service-account.json")  # Путь к ключу в backend/
     firebase_admin.initialize_app(cred)
     print("✅ Firebase initialized")
 except Exception as e:

@@ -10,7 +10,7 @@ from database import get_session
 from models import User
 
 # Инициализация Firebase (убедись, что ключ есть)
-cred = credentials.Certificate("backend/firebase-service-account.json")
+cred = credentials.Certificate("firebase-service-account.json")
 firebase_admin.initialize_app(cred)
 
 def migrate_users():

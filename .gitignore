@@ -53,3 +53,7 @@ MANIFEST
 
 # Firebase
 backend/firebase-service-account.json
+
+# Database
+backend/*.db
+backend/data/*.db

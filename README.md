@@ -44,7 +44,50 @@ cheap_gasoline/
 └── README.md               # Documentation
 ```
 
-## 🚀 Quick Start
+## � Environment Setup
+
+### Important: API Keys and Secrets
+
+This project uses Firebase for authentication and requires API keys. **Never commit sensitive keys to version control!**
+
+#### Frontend Environment Variables
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Fill in your Firebase configuration in `.env`:
+   ```
+   VITE_FIREBASE_API_KEY=your_actual_api_key
+   VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your_project_id
+   VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+   VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+   VITE_FIREBASE_APP_ID=your_app_id
+   ```
+
+#### Backend Environment Variables
+
+1. Copy `backend/.env.example` to `backend/.env`:
+   ```bash
+   cp backend/.env.example backend/.env
+   ```
+
+2. Place your `firebase-service-account.json` in the `backend/` directory
+3. Update `backend/.env` with your settings
+
+#### Firebase Setup
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Create a new project or use existing
+3. Enable Authentication and Firestore
+4. Download the service account key from Project Settings > Service Accounts
+5. Place the JSON file in `backend/firebase-service-account.json`
+
+**⚠️ Security Warning**: The `firebase-service-account.json` file contains sensitive credentials and is already added to `.gitignore`. Never commit this file!
+
+## �🚀 Quick Start
 
 ### Backend Setup
 

@@ -10,10 +10,10 @@ export const API_URL =
 
 // Firebase configuration
 export const firebaseConfig = {
-  apiKey: "AIzaSyD1hP4WrnM25LvuNDfOf6a8FBTAYzWOkQU",
-  authDomain: "cheap-gasoline-8b97c.firebaseapp.com",
-  projectId: "cheap-gasoline-8b97c",
-  storageBucket: "cheap-gasoline-8b97c.firebasestorage.app",
-  messagingSenderId: "336052007120",
-  appId: "1:336052007120:web:a1fe5515cde2946cc3aed5",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
