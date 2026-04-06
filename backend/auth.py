@@ -4,21 +4,64 @@ Firebase Auth integration, role-based access control
 """
 
 import os
+import json
+from datetime import datetime, timedelta
 from typing import Optional, Dict
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer
 from sqlmodel import Session, select
 import firebase_admin
 from firebase_admin import auth, credentials
-import json
 
-# Инициализация Firebase
-try:
-    cred = credentials.Certificate("firebase-service-account.json")  # Путь к ключу в backend/
-    firebase_admin.initialize_app(cred)
-    print("✅ Firebase initialized")
-except Exception as e:
-    print(f"⚠️ Firebase init: {e}")
+# ============ FIREBASE INITIALIZATION ============
+# Try multiple methods to load Firebase credentials
+def init_firebase():
+    """Initialize Firebase with credentials from file or environment"""
+    try:
+        # Check if already initialized
+        firebase_admin.get_app()
+        print("✅ Firebase already initialized")
+        return
+    except ValueError:
+        pass  # Not initialized yet
+    
+    try:
+        # Method 1: Load from file (local development)
+        if os.path.exists("firebase-service-account.json"):
+            cred = credentials.Certificate("firebase-service-account.json")
+            firebase_admin.initialize_app(cred)
+            print("✅ Firebase initialized from file")
+            return
+    except Exception as e:
+        print(f"⚠️ File load failed: {e}")
+    
+    try:
+        # Method 2: Load from GOOGLE_APPLICATION_CREDENTIALS env var (Render)
+        if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+            cred = credentials.Certificate(os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"))
+            firebase_admin.initialize_app(cred)
+            print("✅ Firebase initialized from GOOGLE_APPLICATION_CREDENTIALS")
+            return
+    except Exception as e:
+        print(f"⚠️ Environment credentials failed: {e}")
+    
+    try:
+        # Method 3: Load from FIREBASE_SERVICE_ACCOUNT_KEY env var (as JSON string)
+        firebase_key_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT_KEY")
+        if firebase_key_json:
+            key_dict = json.loads(firebase_key_json)
+            cred = credentials.Certificate(key_dict)
+            firebase_admin.initialize_app(cred)
+            print("✅ Firebase initialized from FIREBASE_SERVICE_ACCOUNT_KEY env")
+            return
+    except Exception as e:
+        print(f"⚠️ JSON string credentials failed: {e}")
+    
+    print("❌ Firebase initialization failed - no credentials found")
+    print("   Set one of: firebase-service-account.json file, GOOGLE_APPLICATION_CREDENTIALS, or FIREBASE_SERVICE_ACCOUNT_KEY env var")
+
+# Initialize on startup
+init_firebase()
 
 # HTTP Bearer scheme
 security = HTTPBearer()

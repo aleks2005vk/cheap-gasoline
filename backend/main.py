@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel, validator
 from sqlmodel import Session, select, func, SQLModel
 
@@ -69,6 +70,16 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
 )
+
+# Add COOP header middleware
+class COOPMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+        response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+        return response
+
+app.add_middleware(COOPMiddleware)
 
 # DB init
 try:
@@ -225,28 +236,77 @@ def create_test_user(db: Session = Depends(get_session)):
 # ============ AUTHENTICATION (Firebase) ============
 
 @app.post("/api/auth/create-user")
-def create_user_after_firebase(email: str, name: Optional[str] = None,
-                               db: Session = Depends(get_session)):
-    """Создать пользователя в локальной БД после Firebase-регистрации"""
-    existing = db.exec(select(User).where(User.email == email)).first()
-    if existing:
-        return {"status": "exists", "message": "User already exists"}
-
-    user = User(
-        email=email,
-        name=name or email.split('@')[0],
-        role="user"
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    profile = UserProfile(user_id=user.id)
-    db.add(profile)
-    log_audit(db, user.id, "user_created_via_firebase")
-    db.commit()
-
-    return {"status": "success", "user_id": user.id}
+def create_user_after_firebase(
+    email: str,
+    name: Optional[str] = None,
+    db: Session = Depends(get_session)
+):
+    """
+    Создать пользователя в локальной БД после Firebase-регистрации
+    
+    Accepts:
+    - Query params: email, name (optional)
+    - JSON body: {"email": "...", "name": "..."}
+    """
+    try:
+        # Normalize email
+        email = email.lower().strip() if email else None
+        
+        if not email or '@' not in email:
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        # Check if user already exists
+        existing = db.exec(
+            select(User).where(User.email == email)
+        ).first()
+        
+        if existing:
+            return {
+                "status": "exists",
+                "message": "User already exists",
+                "user_id": existing.id
+            }
+        
+        # Create new user with proper defaults
+        user = User(
+            email=email,
+            name=name.strip() if name else email.split('@')[0],
+            role="user",  # Default role
+            is_banned=False,
+            karma_points=0,
+            verification_score=0.0,
+            total_updates=0,
+            confirmed_updates=0,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        # Create user profile
+        profile = UserProfile(
+            user_id=user.id,
+            notifications_enabled=True,
+            notification_radius_km=5
+        )
+        db.add(profile)
+        
+        # Log action
+        log_audit(db, user.id, "user_created_via_firebase", details={"email": email})
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "User created successfully",
+            "user_id": user.id,
+            "email": email
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Error creating user: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
 
 
 # ============ USER PROFILE ============

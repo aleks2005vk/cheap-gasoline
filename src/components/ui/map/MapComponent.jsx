@@ -131,6 +131,9 @@ const MapComponent = () => {
 
     mapRef.current = map;
 
+    // Initialize LayerGroup for markers (used by supercluster)
+    markersRef.current = L.layerGroup().addTo(map);
+
     // Update bounds and zoom on map events
     const updateMapView = () => {
       const mapBounds = map.getBounds();
