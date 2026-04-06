@@ -45,7 +45,8 @@ const MapComponent = () => {
   const [bounds, setBounds] = useState(null);
   const [zoom, setZoom] = useState(13);
 
-  const { data: stations = [] } = useGetPointsQuery();
+  // Destructure loading state from query hook
+  const { data: stations = [], isLoading, isError } = useGetPointsQuery();
 
   const points = useMemo(
     () =>
@@ -189,99 +190,123 @@ const MapComponent = () => {
   }, [stations, selectedPoint]);
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-gray-100 overflow-hidden">
-      <style>{`
-        .marker-main { 
-          background: linear-gradient(135deg, #ff9500 0%, #ff7300 100%);
-          border-radius: 50% 50% 50% 0; 
-          transform: rotate(-45deg); 
-          border: 3px solid white; 
-          display: flex; align-items: center; justify-content: center; 
-          box-shadow: 0 4px 12px rgba(255, 149, 0, 0.4);
-        }
-        .marker-main.active { 
-          background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important; 
-          scale: 1.3; 
-          box-shadow: 0 0 30px rgba(220, 38, 38, 0.6);
-          z-index: 1000;
-        }
-        .marker-inner { width: 40%; height: 40%; background: white; border-radius: 50%; }
-        .custom-cluster {
-          background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
-          border-radius: 50%;
-          border: 3px solid white;
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-          color: white;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .cluster-icon { font-weight: bold; font-size: 14px; }
-        .location-marker { position: relative; width: 20px; height: 20px; }
-        .location-pulse {
-          position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(59, 130, 246, 0.5);
-          border-radius: 50%;
-          animation: pulse 2s infinite;
-        }
-        .location-dot {
-          position: absolute; top: 5px; left: 5px; width: 10px; height: 10px;
-          background: #2563eb; border: 2px solid white; border-radius: 50%;
-        }
-        @keyframes pulse {
-          0% { transform: scale(1); opacity: 1; }
-          100% { transform: scale(3); opacity: 0; }
-        }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-      `}</style>
-      <div id="map" className="absolute inset-0 z-0 w-full h-full" />
-
-      {/* Empty State: Show when no stations are available */}
-      {stations.length === 0 && (
-        <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-2xl p-8 shadow-2xl text-center max-w-md">
-            <div className="text-5xl mb-4">⛽</div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">No Stations Yet</h2>
-            <p className="text-gray-600 mb-6">
-              The database is empty. Stations will appear here once data is added.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => window.location.reload()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={() => mapRef.current?.setView([41.7151, 44.8271], 13)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Reset Map
-              </button>
-            </div>
+    <>
+      {/* Loading Spinner - Only show while fetching */}
+      {isLoading && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl text-center">
+            <div className="animate-spin text-4xl mb-4">⚙️</div>
+            <p className="text-gray-700 font-medium">Loading prices...</p>
           </div>
         </div>
       )}
 
-      <button
-        onClick={() => mapRef.current.locate({ setView: true, maxZoom: 16 })}
-        className="absolute bottom-24 md:bottom-24 right-4 md:right-auto md:left-6 w-14 h-14 bg-white z-[1000] rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-all border border-gray-100"
-      >
-        <span className="text-2xl">📍</span>
-      </button>
+      {/* Error State */}
+      {isError && !isLoading && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl text-center max-w-md">
+            <div className="text-5xl mb-4">❌</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">Connection Error</h2>
+            <p className="text-gray-600 mb-6">
+              Failed to load stations. Please check your connection and try again.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
-      <MapSidebar
-        stations={stations}
-        selectedPoint={selectedPoint}
-        onPointClick={(s) => {
-          setSelectedPoint(s);
-          mapRef.current.flyTo([s.lat, s.lng], 16);
-        }}
-      />
+      {/* Main Map Container - Always rendered */}
+      <div className="fixed inset-0 w-screen h-screen bg-gray-100 overflow-hidden">
+        <style>{`
+          .marker-main { 
+            background: linear-gradient(135deg, #ff9500 0%, #ff7300 100%);
+            border-radius: 50% 50% 50% 0; 
+            transform: rotate(-45deg); 
+            border: 3px solid white; 
+            display: flex; align-items: center; justify-content: center; 
+            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.4);
+          }
+          .marker-main.active { 
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important; 
+            scale: 1.3; 
+            box-shadow: 0 0 30px rgba(220, 38, 38, 0.6);
+            z-index: 1000;
+          }
+          .marker-inner { width: 40%; height: 40%; background: white; border-radius: 50%; }
+          .custom-cluster {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            color: white;
+            display: flex; align-items: center; justify-content: center;
+          }
+          .cluster-icon { font-weight: bold; font-size: 14px; }
+          .location-marker { position: relative; width: 20px; height: 20px; }
+          .location-pulse {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+          }
+          .location-dot {
+            position: absolute; top: 5px; left: 5px; width: 10px; height: 10px;
+            background: #2563eb; border: 2px solid white; border-radius: 50%;
+          }
+          @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(3); opacity: 0; }
+          }
+          .no-scrollbar::-webkit-scrollbar { display: none; }
+        `}</style>
+        
+        {/* Map div - Always rendered */}
+        <div id="map" className="absolute inset-0 z-0 w-full h-full" />
 
-      <div className="absolute bottom-0 left-0 right-0 z-[2000]">
-        <Footer />
+        {/* Locate Button */}
+        <button
+          onClick={() => mapRef.current.locate({ setView: true, maxZoom: 16 })}
+          className="absolute bottom-24 md:bottom-24 right-4 md:right-auto md:left-6 w-14 h-14 bg-white z-[1000] rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-all border border-gray-100"
+        >
+          <span className="text-2xl">📍</span>
+        </button>
+
+        {/* Map Sidebar */}
+        <MapSidebar
+          stations={stations}
+          selectedPoint={selectedPoint}
+          onPointClick={(s) => {
+            setSelectedPoint(s);
+            mapRef.current.flyTo([s.lat, s.lng], 16);
+          }}
+        />
+
+        {/* Empty State Notification - Show only when loaded AND no data */}
+        {!isLoading && !isError && stations.length === 0 && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[100] bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-lg max-w-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⛽</span>
+              <div>
+                <p className="font-semibold text-gray-800">No stations found</p>
+                <p className="text-sm text-gray-600">Add the first one to get started!</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 z-[2000]">
+          <Footer />
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
 export default MapComponent;
+
