@@ -46,6 +46,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Production
+        "https://cheap-gasoline-alexproject.vercel.app",
+        "https://cheap-gasoline.vercel.app",
+        # Local development
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:5174",

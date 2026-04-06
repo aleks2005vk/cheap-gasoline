@@ -234,6 +234,33 @@ const MapComponent = () => {
       `}</style>
       <div id="map" className="absolute inset-0 z-0 w-full h-full" />
 
+      {/* Empty State: Show when no stations are available */}
+      {stations.length === 0 && (
+        <div className="absolute inset-0 z-[500] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl text-center max-w-md">
+            <div className="text-5xl mb-4">⛽</div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">No Stations Yet</h2>
+            <p className="text-gray-600 mb-6">
+              The database is empty. Stations will appear here once data is added.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={() => mapRef.current?.setView([41.7151, 44.8271], 13)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Reset Map
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={() => mapRef.current.locate({ setView: true, maxZoom: 16 })}
         className="absolute bottom-24 md:bottom-24 right-4 md:right-auto md:left-6 w-14 h-14 bg-white z-[1000] rounded-2xl shadow-xl flex items-center justify-center active:scale-90 transition-all border border-gray-100"
