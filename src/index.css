@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Smooth theme transition */
+* {
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 :root {
   --header-h: 56px;
   --footer-h: 76px;
@@ -19,9 +28,11 @@
   --success-color: #10b981;
   --warning-color: #f59e0b;
   --error-color: #ef4444;
+  --map-filter: brightness(1) contrast(1);
 }
 
-[data-theme="dark"] {
+[data-theme="dark"],
+.dark {
   /* Темная тема */
   --bg-primary: #0f172a;
   --bg-secondary: #1e293b;
@@ -36,6 +47,7 @@
   --success-color: #34d399;
   --warning-color: #fbbf24;
   --error-color: #f87171;
+  --map-filter: brightness(0.85) contrast(1.1);
 }
 
 /* Фикс гигантских иконок - это ОБЯЗАТЕЛЬНО */
@@ -73,6 +85,33 @@
   height: 100%;
   width: 100%;
   z-index: 1;
+  filter: var(--map-filter);
+}
+
+/* Dark mode map tiles adjustment */
+.dark #map {
+  filter: brightness(0.85) contrast(1.1) saturate(1.1);
+}
+
+/* Ensure map controls are visible in dark mode */
+.dark .leaflet-control {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+.dark .leaflet-control a {
+  color: #f8fafc;
+}
+
+.dark .leaflet-control a:hover {
+  background-color: #334155;
+}
+
+.dark .leaflet-control-zoom-in,
+.dark .leaflet-control-zoom-out {
+  background-color: #1e293b;
+  color: #f8fafc;
 }
 
 .fab {
@@ -90,5 +129,11 @@
   right: 0;
   background: white;
   z-index: 5000;
-  transition: transform 0.3s;
+  transition: transform 0.3s, background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark mode sidebar */
+.dark .sidebar-drawer {
+  background: #1e293b;
+  color: #f8fafc;
 }

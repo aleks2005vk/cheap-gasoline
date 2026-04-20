@@ -19,14 +19,20 @@ export const ThemeProvider = ({ children }) => {
     setIsDark(!isDark);
   };
 
-  // Сохраняем тему в localStorage и применяем к документу
+  // Сохраняем тему в localStorage и применяем к документу с плавной анимацией
   useEffect(() => {
     const theme = isDark ? "dark" : "light";
     localStorage.setItem("theme", theme);
+    
+    // Применяем оба способа для полной совместимости
+    document.documentElement.setAttribute("data-theme", theme);
+    
     if (isDark) {
       document.documentElement.classList.add("dark");
+      document.documentElement.style.colorScheme = "dark";
     } else {
       document.documentElement.classList.remove("dark");
+      document.documentElement.style.colorScheme = "light";
     }
   }, [isDark]);
 

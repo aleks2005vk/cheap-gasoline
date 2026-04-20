@@ -5,6 +5,7 @@ import { selectCurrentUser } from "../../../app/api/authSlice";
 import { API_URL } from "../../../config";
 import StationSearch from "./StationSearch";
 import { useTranslation } from "react-i18next";
+import { useTheme } from "../../../context/ThemeContext";
 
 const ROLE_CONFIG = {
   admin: {
@@ -38,6 +39,7 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
   const navigate = useNavigate();
   const user = useSelector(selectCurrentUser);
   const { t } = useTranslation();
+  const { isDark } = useTheme();
   const scrollContainerRef = useRef(null);
   const cardRefs = useRef({});
   const [filterMode, setFilterMode] = useState("nearest");
@@ -197,8 +199,8 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
               onClick={() => setFilterMode(mode)}
               className={`px-6 py-2 rounded-2xl text-[10px] font-bold uppercase transition-all whitespace-nowrap ${
                 filterMode === mode
-                  ? "bg-blue-600 text-white shadow-md"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  ? "bg-blue-600 dark:bg-blue-500 text-white shadow-md"
+                  : "bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-600"
               }`}
             >
               {t(mode)}
@@ -226,15 +228,15 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
               onClick={() => onPointClick(station)}
               className={`p-5 rounded-[2rem] transition-all border-2 cursor-pointer ${
                 isSelected
-                  ? "border-blue-500 bg-white shadow-xl scale-[1.02]"
-                  : "border-transparent bg-gray-50/80 hover:border-gray-200"
+                  ? "border-blue-500 bg-white dark:bg-slate-800 shadow-xl scale-[1.02]"
+                  : "border-transparent bg-gray-50/80 dark:bg-slate-700/50 hover:border-gray-200 dark:hover:border-slate-600"
               }`}
             >
               <div className="mb-4 px-1">
-                <h3 className="text-lg font-black text-gray-900 uppercase leading-tight">
+                <h3 className="text-lg font-black text-gray-900 dark:text-white uppercase leading-tight">
                   {station.name}
                 </h3>
-                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">
+                <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">
                   {station.brand}
                 </p>
               </div>
@@ -249,12 +251,12 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                         handlePriceClick(station, p.id, p.type);
                       }
                     }}
-                    className="p-3 bg-white border border-gray-100 rounded-2xl flex flex-col items-center hover:bg-blue-50 transition-colors"
+                    className="p-3 bg-white dark:bg-slate-700 border border-gray-100 dark:border-slate-600 rounded-2xl flex flex-col items-center hover:bg-blue-50 dark:hover:bg-slate-600 transition-colors"
                   >
-                    <span className="text-[7px] font-black text-gray-400 uppercase mb-1">
+                    <span className="text-[7px] font-black text-gray-400 dark:text-gray-400 uppercase mb-1">
                       {p.type}
                     </span>
-                    <span className="text-base font-black text-gray-800">
+                    <span className="text-base font-black text-gray-800 dark:text-white">
                       {p.price || "—"}
                     </span>
                   </div>
@@ -262,7 +264,7 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
               </div>
 
               {isSelected && (
-                <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-in fade-in zoom-in duration-300">
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-600 space-y-3 animate-in fade-in zoom-in duration-300">
                   <div
                     className={`px-3 py-2 rounded-xl text-xs font-bold text-center ${roleConfig.color}`}
                   >
@@ -286,13 +288,13 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                         e.stopPropagation();
                         navigate("/login");
                       }}
-                      className="w-full py-4 bg-gray-300 text-gray-600 text-[10px] font-black rounded-2xl shadow-lg cursor-not-allowed"
+                      className="w-full py-4 bg-gray-300 dark:bg-slate-600 text-gray-600 dark:text-gray-300 text-[10px] font-black rounded-2xl shadow-lg cursor-not-allowed hover:bg-gray-400 dark:hover:bg-slate-500 transition-colors"
                     >
                       {t("loginToUpdate")}
                     </button>
                   ) : currentRole === "station_owner" &&
                     !canUpdatePrice(station.id) ? (
-                    <div className="w-full py-4 bg-orange-100 text-orange-700 text-[10px] font-black rounded-2xl text-center">
+                    <div className="w-full py-4 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-[10px] font-black rounded-2xl text-center">
                       {t("notYourStation")}
                     </div>
                   ) : null}
@@ -300,7 +302,7 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                   <div className="grid grid-cols-2 gap-2">
                     <a
                       href={`yandexnavi://build_route_on_map?lat_to=${station.lat}&lon_to=${station.lng}`}
-                      className="py-3 bg-yellow-400 text-black text-[10px] font-black rounded-xl text-center uppercase shadow-sm"
+                      className="py-3 bg-yellow-400 dark:bg-yellow-600 text-black dark:text-white text-[10px] font-black rounded-xl text-center uppercase shadow-sm hover:shadow-md transition-shadow"
                       onClick={(e) => e.stopPropagation()}
                     >
                       ЯНДЕКС
@@ -309,7 +311,7 @@ const MapSidebar = ({ stations, selectedPoint, onPointClick, setStations }) => {
                       href={`http://maps.google.com/maps?daddr=${station.lat},${station.lng}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="py-3 bg-gray-100 text-gray-600 text-[10px] font-black rounded-xl text-center uppercase"
+                      className="py-3 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 text-[10px] font-black rounded-xl text-center uppercase hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       GOOGLE

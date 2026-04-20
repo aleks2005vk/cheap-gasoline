@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import useSupercluster from "use-supercluster";
 import MapSidebar from "./MapSidebar";
 import Footer from "../Footer/Footer";
+import { useTheme } from "../../../context/ThemeContext";
 // ИМПОРТ КОНФИГА
 import { API_URL } from "../../../config";
 import { useGetPointsQuery } from "../../../app/api/apiSlice";
@@ -44,6 +45,7 @@ const MapComponent = () => {
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [bounds, setBounds] = useState(null);
   const [zoom, setZoom] = useState(13);
+  const { isDark } = useTheme();
 
   // Destructure loading state from query hook
   const { data: stations = [], isLoading, isError } = useGetPointsQuery();
@@ -113,6 +115,18 @@ const MapComponent = () => {
       marker.addTo(mapRef.current);
     });
   }, [clusters, selectedPoint]);
+
+  // Apply dark mode filter to map with smooth animation
+  useEffect(() => {
+    const mapElement = document.getElementById("map");
+    if (mapElement) {
+      if (isDark) {
+        mapElement.style.filter = "brightness(0.85) contrast(1.1) saturate(1.1)";
+      } else {
+        mapElement.style.filter = "brightness(1) contrast(1)";
+      }
+    }
+  }, [isDark]);
 
   useEffect(() => {
     if (mapRef.current) return;
